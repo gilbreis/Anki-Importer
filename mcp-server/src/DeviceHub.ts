@@ -22,16 +22,16 @@ export class DeviceHub {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly wss = new WebSocketServer({ noServer: true });
 
-  constructor(private readonly authenticate: (deviceId: string, token?: string) => boolean) {}
+  constructor(private readonly authenticate: (deviceId: string, token: string) => Promise<boolean>) {}
 
-  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean {
+  async handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): Promise<boolean> {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     if (url.pathname !== "/agent") return false;
 
     const deviceId = url.searchParams.get("deviceId")?.trim();
-    const token = url.searchParams.get("token") ?? undefined;
+    const token = url.searchParams.get("token") ?? "";
 
-    if (!deviceId || !this.authenticate(deviceId, token)) {
+    if (!deviceId || !token || !await this.authenticate(deviceId, token)) {
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
       socket.destroy();
       return true;
