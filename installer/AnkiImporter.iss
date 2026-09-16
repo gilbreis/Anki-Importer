@@ -7,10 +7,6 @@
   #define CompanionSource "..\artifacts\companion\AnkiImporter.Companion.exe"
 #endif
 
-#ifndef ServerUrl
-  #define ServerUrl "https://anki-importer.example.invalid"
-#endif
-
 [Setup]
 AppId={{8CBE6016-617C-4FBA-BB5E-B7AFEF4BAA8D}
 AppName={#MyAppName}
@@ -34,7 +30,7 @@ RestartApplications=no
 Source: "{#CompanionSource}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\Anki Importer"; Filename: "{app}\{#MyAppExeName}"; Parameters: "setup {#ServerUrl}"
+Name: "{autoprograms}\Anki Importer"; Filename: "{app}\{#MyAppExeName}"; Parameters: "setup"
 Name: "{userstartup}\Anki Importer"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 
 [Registry]
@@ -44,13 +40,7 @@ Root: HKCU; Subkey: "Software\Classes\anki-importer\DefaultIcon"; ValueType: str
 Root: HKCU; Subkey: "Software\Classes\anki-importer\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "setup {#ServerUrl}"; Description: "Configurar Anki Importer"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Parameters: "setup"; Description: "Configurar Anki Importer"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\AnkiImporter"
-
-[Code]
-function InitializeSetup(): Boolean;
-begin
-  Result := True;
-end;
