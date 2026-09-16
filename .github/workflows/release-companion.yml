@@ -16,21 +16,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          dotnet-version: "8.0.x"
+          python-version: "3.13"
 
-      - name: Publish Companion
+      - name: Install PyInstaller
+        shell: pwsh
+        run: pip install -r local-importer/requirements.txt
+
+      - name: Build local importer EXE
         shell: pwsh
         run: |
-          dotnet publish desktop-companion/AnkiImporter.Companion/AnkiImporter.Companion.csproj `
-            --configuration Release `
-            --runtime win-x64 `
-            --self-contained true `
-            /p:PublishSingleFile=true `
-            /p:IncludeNativeLibrariesForSelfExtract=true `
-            --output artifacts/companion
+          New-Item -ItemType Directory -Force -Path artifacts/local-importer | Out-Null
+          pyinstaller `
+            --onefile `
+            --windowed `
+            --name AnkiImporter `
+            --distpath artifacts/local-importer `
+            --workpath artifacts/pyinstaller-work `
+            --specpath artifacts `
+            local-importer/app.py
 
       - name: Install Inno Setup
         shell: pwsh
@@ -55,10 +61,8 @@ jobs:
             throw "ISCC.exe was not found after installing Inno Setup."
           }
 
-          Write-Host "Using Inno Setup compiler: $iscc"
-
           & $iscc `
-            "/DCompanionSource=$((Resolve-Path 'artifacts/companion/AnkiImporter.Companion.exe').Path)" `
+            "/DImporterSource=$((Resolve-Path 'artifacts/local-importer/AnkiImporter.exe').Path)" `
             "installer/AnkiImporter.iss"
 
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
