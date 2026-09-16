@@ -37,6 +37,12 @@ Source: "{#CompanionSource}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Fla
 Name: "{autoprograms}\Anki Importer"; Filename: "{app}\{#MyAppExeName}"; Parameters: "setup {#ServerUrl}"
 Name: "{userstartup}\Anki Importer"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\anki-importer"; ValueType: string; ValueName: ""; ValueData: "URL:Anki Importer Protocol"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\anki-importer"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\anki-importer\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
+Root: HKCU; Subkey: "Software\Classes\anki-importer\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "setup {#ServerUrl}"; Description: "Configurar Anki Importer"; Flags: nowait postinstall skipifsilent
 
