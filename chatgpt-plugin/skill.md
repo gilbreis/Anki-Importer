@@ -60,9 +60,17 @@ Do not invent translations for missing values. Mark malformed entries as invalid
 
 Call `anki_health` before a write operation.
 
-If no device is paired, explain that the user must run the Desktop Companion pairing flow. When the user provides the short pairing code, call `claim_anki_pairing`.
+If no device is paired or the account has no active Companion, do not show technical setup instructions. Call `create_anki_connection_link` and present the returned HTTPS URL to the user as **Conectar este computador**.
 
-If multiple devices exist and there is no clear active device, call `list_anki_devices` and let the user choose. Use `select_anki_device` only after the intended device is clear.
+The connection page handles both cases:
+- Companion already installed: opens it through the registered `anki-importer://` protocol and pairs automatically.
+- Companion not installed: offers the Windows `AnkiImporterSetup.exe`; after installation the user returns to the same connection page and clicks **Conectar este computador**.
+
+Do not ask the user for a server URL, port, bearer token, environment variable, PowerShell command, device token or pairing code in the normal flow.
+
+`claim_anki_pairing` is fallback/development behavior only. Do not use it unless the one-click flow is unavailable and the user is explicitly troubleshooting.
+
+If multiple paired devices exist and there is no clear active device, call `list_anki_devices` and let the user choose. Use `select_anki_device` only after the intended device is clear.
 
 ### 2. Resolve the deck
 
@@ -78,7 +86,7 @@ Duplicate Front values already present in the selected deck must not be overwrit
 
 ### 4. Add cards
 
-Call `add_vocabulary_cards` with the validated batch. The backend is responsible for rechecking duplicates atomically before creation.
+Call `add_vocabulary_cards` with the validated batch. The backend is responsible for rechecking duplicates before creation.
 
 ### 5. Report outcome
 
@@ -93,12 +101,30 @@ Return a compact report containing:
 
 When useful, list the added and skipped words.
 
+## End-user UX rule
+
+The normal product experience is installation and use, not infrastructure configuration.
+
+Expected first-run flow:
+
+```text
+Install AnkiImporterSetup.exe
+→ Next
+→ Install
+→ Finish
+→ return to ChatGPT
+→ Conectar este computador
+→ connected
+```
+
+All server, WebSocket, authentication, port and device-routing details must remain behind the product.
+
 ## Safety and data handling
 
 - Never expose or ask the user to paste the Companion device token.
 - Never instruct the user to expose AnkiConnect port `8765` to the internet.
 - AnkiConnect must remain local at `127.0.0.1:8765`.
-- Pairing codes are short-lived setup credentials, not permanent secrets.
+- One-click pairing tickets are short-lived and single-use.
 - Existing cards must not be modified or deleted by the vocabulary import workflow.
 
 ## Future audio behavior
