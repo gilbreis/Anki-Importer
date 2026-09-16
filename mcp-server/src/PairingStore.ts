@@ -6,6 +6,7 @@ export interface PairingSession {
   createdAt: number;
   expiresAt: number;
   claimed: boolean;
+  accountId?: string;
   deviceId?: string;
   deviceToken?: string;
 }
@@ -36,7 +37,7 @@ export class PairingStore {
     return session;
   }
 
-  claim(pairingCode: string): PairingSession | null {
+  claim(pairingCode: string, accountId: string): PairingSession | null {
     this.cleanup();
 
     const normalized = pairingCode.trim().toUpperCase();
@@ -47,6 +48,7 @@ export class PairingStore {
     if (!session || session.claimed) return null;
 
     session.claimed = true;
+    session.accountId = accountId;
     session.deviceId = randomUUID();
     session.deviceToken = randomBytes(32).toString("base64url");
     this.idByCode.delete(normalized);
@@ -59,14 +61,18 @@ export class PairingStore {
     return this.sessionsById.get(pairingId) ?? null;
   }
 
-  consumeCredentials(pairingId: string): { deviceId: string; deviceToken: string } | null {
+  consumeCredentials(pairingId: string): { accountId: string; deviceId: string; deviceToken: string } | null {
     this.cleanup();
 
     const session = this.sessionsById.get(pairingId);
-    if (!session?.claimed || !session.deviceId || !session.deviceToken) return null;
+    if (!session?.claimed || !session.accountId || !session.deviceId || !session.deviceToken) return null;
 
     this.sessionsById.delete(pairingId);
-    return { deviceId: session.deviceId, deviceToken: session.deviceToken };
+    return {
+      accountId: session.accountId,
+      deviceId: session.deviceId,
+      deviceToken: session.deviceToken,
+    };
   }
 
   private cleanup(): void {
