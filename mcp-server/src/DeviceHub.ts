@@ -61,6 +61,16 @@ export class DeviceHub {
     return this.devices.get(deviceId)?.readyState === WebSocket.OPEN;
   }
 
+  disconnect(deviceId: string, reason = "Device access revoked"): void {
+    const ws = this.devices.get(deviceId);
+    if (!ws) return;
+
+    this.devices.delete(deviceId);
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      ws.close(4003, reason);
+    }
+  }
+
   async call(deviceId: string, action: string, payload?: unknown, timeoutMs = 15000): Promise<unknown> {
     const ws = this.devices.get(deviceId);
     if (!ws || ws.readyState !== WebSocket.OPEN) {
