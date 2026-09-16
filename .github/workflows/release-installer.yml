@@ -2,8 +2,12 @@ name: Release Windows Installer
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths:
+      - "local-importer/**"
+      - "installer/**"
+      - ".github/workflows/release-installer.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,8 +25,8 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install PyInstaller
-        run: python -m pip install pyinstaller
+      - name: Install dependencies
+        run: python -m pip install -r local-importer/requirements.txt
 
       - name: Build local importer EXE
         shell: pwsh
@@ -70,13 +74,23 @@ jobs:
           New-Item -ItemType Directory -Force -Path artifacts/release | Out-Null
           Copy-Item installer/output/AnkiImporterSetup.exe artifacts/release/AnkiImporterSetup.exe
 
-      - name: Create GitHub Release
+      - name: Publish latest installer
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" `
-            artifacts/release/AnkiImporterSetup.exe `
-            --repo "${{ github.repository }}" `
-            --title "Anki Importer ${{ github.ref_name }}" `
-            --generate-notes
+          $asset = "artifacts/release/AnkiImporterSetup.exe"
+          if (gh release view latest --repo "${{ github.repository }}" *> $null) {
+            gh release upload latest $asset --clobber --repo "${{ github.repository }}"
+            gh release edit latest `
+              --repo "${{ github.repository }}" `
+              --title "Anki Importer - Última versão" `
+              --notes "Instalador mais recente do Anki Importer para Windows. Esta release é atualizada automaticamente."
+          }
+          else {
+            gh release create latest $asset `
+              --repo "${{ github.repository }}" `
+              --target main `
+              --title "Anki Importer - Última versão" `
+              --notes "Instalador mais recente do Anki Importer para Windows. Esta release é atualizada automaticamente."
+          }
