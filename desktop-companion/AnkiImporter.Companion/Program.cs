@@ -29,9 +29,9 @@ try
         if (!protocolUri.Host.Equals("pair", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Link do Anki Importer não reconhecido.");
 
-        var query = System.Web.HttpUtility.ParseQueryString(protocolUri.Query);
-        var server = query["server"];
-        var ticket = query["ticket"];
+        var query = ParseQuery(protocolUri.Query);
+        query.TryGetValue("server", out var server);
+        query.TryGetValue("ticket", out var ticket);
 
         if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(ticket))
             throw new InvalidOperationException("Link de conexão incompleto.");
@@ -183,6 +183,19 @@ catch (Exception ex)
     }
 
     Environment.ExitCode = 1;
+}
+
+static Dictionary<string, string> ParseQuery(string query)
+{
+    var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var segment in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+    {
+        var parts = segment.Split('=', 2);
+        var key = Uri.UnescapeDataString(parts[0].Replace('+', ' '));
+        var value = parts.Length > 1 ? Uri.UnescapeDataString(parts[1].Replace('+', ' ')) : string.Empty;
+        values[key] = value;
+    }
+    return values;
 }
 
 static async Task<ImportRequest> ReadRequestAsync(string[] args)
