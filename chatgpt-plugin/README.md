@@ -1,14 +1,29 @@
-# ChatGPT Plugin / App
+# ChatGPT App — Anki Importer
 
 ChatGPT-facing layer for Anki Importer.
 
-## Intended user experience
+## End-user experience
 
-User installs the Anki Importer plugin/app, pairs the Desktop Companion once, then attaches a `.txt` file and asks:
+The product must hide all infrastructure details from the user.
+
+First-time setup:
+
+1. Install the Anki Importer app in ChatGPT.
+2. Download and run `AnkiImporterSetup.exe`.
+3. Complete the standard Windows wizard: Next → Install → Finish.
+4. Return to ChatGPT and click **Connect this computer / Conectar este computador**.
+5. The browser opens the installed Companion through the registered `anki-importer://` protocol.
+6. Pairing completes automatically using a short-lived, single-use ticket.
+
+The end user must never be asked to configure a server URL, port, token, environment variable, PowerShell command or manual pairing code during the normal flow.
+
+Normal use:
 
 ```text
 @anki vocabulary importer Deck "English"
 ```
+
+with an attached `.txt` file.
 
 The integration should:
 
@@ -29,17 +44,14 @@ English    -> Back
 Model      -> Basic
 ```
 
-## Files in this directory
-
-- `skill.md` — reusable workflow/instructions for the vocabulary import behavior.
-- `app-setup.md` — MCP endpoint, authentication phases, pairing and testing setup.
-
-## MCP tools currently available
+## MCP tools
 
 ```text
-claim_anki_pairing
+create_anki_connection_link
+claim_anki_pairing          # fallback/development only
 list_anki_devices
 select_anki_device
+revoke_anki_device
 anki_health
 list_anki_decks
 find_vocabulary_duplicates
@@ -57,44 +69,53 @@ Invalid: 0
 Errors: 0
 ```
 
-## Current implementation status
-
-### Implemented
+## Implemented
 
 - Remote MCP server.
 - Per-account device isolation.
 - Persistent device registry.
-- Short-code pairing.
+- One-click pairing tickets.
+- HTTPS handoff page with installer fallback.
+- Windows `anki-importer://` custom protocol.
+- Automatic ticket activation in the Companion.
+- Device listing, selection and revocation.
+- Immediate disconnect on device revocation.
 - Outbound authenticated Companion WebSocket.
+- Device token sent via Authorization header rather than query string.
+- Response-to-device binding for WebSocket commands.
 - AnkiConnect health/deck/duplicate/add operations.
 - Windows-protected Companion credential storage.
-- Windows self-contained build workflow.
-- ChatGPT workflow skill.
+- Graphical WinForms first-run wizard.
+- Silent normal Windows startup.
+- Self-contained Windows build workflow.
+- Inno Setup `AnkiImporterSetup.exe` workflow.
+- GitHub Release workflow for the installer.
 - Dockerized MCP server.
-- CI typecheck/build for MCP.
+- MCP typecheck/build CI.
 
-### Required before private ChatGPT test
+## Developer-side work before private end-to-end test
 
-1. Deploy the MCP server to a stable HTTPS host.
-2. Persist `/app/data` for the device registry.
-3. Configure a private development account credential.
-4. Connect the hosted `/mcp` endpoint as a custom ChatGPT app in Developer Mode where supported.
-5. Install/pair the Windows Companion.
-6. Run an end-to-end import from an attached TXT file.
+1. Deploy the MCP server to a stable HTTPS host with WebSocket support.
+2. Persist the device registry storage.
+3. Configure `ANKI_PUBLIC_BASE_URL`.
+4. Connect the hosted `/mcp` endpoint to ChatGPT for private testing.
+5. Publish a private/test Windows installer release.
+6. Run an end-to-end TXT import.
 
-### Required before public distribution
+These are deployment tasks and must not become end-user setup steps.
 
-1. Replace prototype Bearer-token account resolution with production OAuth identity.
-2. Add device revocation and account-data deletion flows.
+## Before public distribution
+
+1. Replace prototype Bearer account resolution with production OAuth identity.
+2. Code-sign the Windows installer/executable.
 3. Finalize privacy/support contact information.
-4. Sign/package the Windows Companion installer.
-5. Add production monitoring, rate limits, secure secret management and backups.
-6. Complete app/plugin submission and review requirements.
+4. Add production monitoring, rate limits, secure secret management and backups.
+5. Complete ChatGPT app review/distribution requirements.
 
 ## Future
 
 - English TTS/audio on Back.
 - Preview/approval mode.
 - Configurable model/field mapping.
-- Device display names and revocation UI.
+- Friendly device display names.
 - Automatic Companion updates.
