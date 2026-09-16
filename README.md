@@ -1,47 +1,39 @@
 # Anki Importer
 
-Anki Importer importa vocabulário do ChatGPT para o Anki Desktop com o mínimo de passos possível.
+Importador local e gratuito de vocabulário do ChatGPT para o Anki Desktop.
 
-## Experiência do usuário
-
-1. Instale `AnkiImporterSetup.exe` uma única vez.
-2. Abra o Anki Desktop com o AnkiConnect instalado.
-3. No ChatGPT, anexe o `.txt` e informe o deck desejado, por exemplo:
-
-```text
-Deck "English"
-```
-
-4. O ChatGPT gera um arquivo `.ankiimport`.
-5. Dê duplo clique nesse arquivo.
-6. O Anki Importer verifica duplicados, adiciona somente os cartões novos, mostra o relatório e fecha.
-
-Não há servidor, login adicional, conta, token, URL, terminal, mensalidade ou processo permanente em segundo plano.
-
-## Arquitetura
+## Como funciona
 
 ```text
 TXT + nome do deck
-       |
-       v
+       ↓
 ChatGPT gera .ankiimport
-       |
-       v
-duplo clique no Windows
-       |
-       v
-Anki Importer local (.exe)
-       |
-       v
-AnkiConnect 127.0.0.1:8765
-       |
-       v
+       ↓
+duplo clique no arquivo
+       ↓
+Anki Importer local
+       ↓
+AnkiConnect
+       ↓
 Anki Desktop
 ```
 
-## Formato `.ankiimport`
+Não há servidor, login adicional, conta, token, mensalidade ou processo permanente em segundo plano.
 
-O arquivo é JSON UTF-8 com esta estrutura:
+## Para o usuário final
+
+Leia o passo a passo em [docs/GUIA-USUARIO.md](docs/GUIA-USUARIO.md).
+
+Resumo:
+
+1. Instale o Anki Desktop.
+2. Instale o AnkiConnect no Anki.
+3. Instale `AnkiImporterSetup.exe` uma vez.
+4. No ChatGPT, envie o TXT e informe o nome do deck.
+5. Baixe o `.ankiimport` gerado e dê duplo clique.
+6. O importador verifica duplicados, adiciona apenas cartões novos, mostra o relatório e fecha.
+
+## Formato `.ankiimport`
 
 ```json
 {
@@ -56,65 +48,31 @@ O arquivo é JSON UTF-8 com esta estrutura:
 }
 ```
 
-O nome do deck pode ser qualquer um. Se o deck não existir, o importador cria automaticamente.
+O deck pode ter qualquer nome. Se não existir, o importador cria automaticamente.
 
-## Regras de importação
+## Regras
 
-- Português vai para `Front`.
-- Inglês vai para `Back`.
-- Modelo padrão: `Basic`.
-- Campos padrão: `Front` e `Back`.
-- Duplicados dentro do próprio pacote são ignorados.
-- Duplicados já existentes no deck são ignorados.
-- Cartões existentes nunca são sobrescritos ou apagados.
-- Acentos são preservados em UTF-8.
+- Português → `Front`
+- Inglês → `Back`
+- Modelo padrão → `Basic`
+- Duplicados no arquivo são ignorados
+- Duplicados já existentes no deck são ignorados
+- Cartões existentes não são alterados ou apagados
+- UTF-8 e acentos são preservados
 
-## Relatório
-
-Ao terminar, o aplicativo mostra algo como:
+## Estrutura do repositório
 
 ```text
-Deck: English
-
-Encontradas: 20
-Adicionadas: 17
-Duplicadas: 3
-Inválidas: 0
-Erros: 0
+local-importer/             aplicativo local em Python
+installer/                  instalador Windows e associação .ankiimport
+docs/GUIA-USUARIO.md        manual do usuário final
+.github/workflows/          build e release do Setup.exe
 ```
-
-## Requisitos
-
-- Windows x64.
-- Anki Desktop.
-- AnkiConnect instalado no Anki.
-
-O usuário não precisa instalar Python. O aplicativo Python é empacotado como `.exe` com PyInstaller e distribuído dentro do `AnkiImporterSetup.exe`.
 
 ## Build
 
-O GitHub Actions gera gratuitamente:
+O GitHub Actions gera o instalador gratuitamente:
 
 ```text
-AnkiImporterSetup.exe
+Python → PyInstaller → AnkiImporter.exe → Inno Setup → AnkiImporterSetup.exe
 ```
-
-Fluxo de build:
-
-```text
-Python
-  -> PyInstaller
-  -> AnkiImporter.exe
-  -> Inno Setup
-  -> AnkiImporterSetup.exe
-```
-
-## Estrutura principal
-
-```text
-local-importer/       Importador local em Python
-installer/            Instalador Windows e associação .ankiimport
-.github/workflows/    Build e release do Setup.exe
-```
-
-Os diretórios antigos de experimentos remotos podem permanecer temporariamente no repositório, mas não fazem parte da arquitetura do produto local.

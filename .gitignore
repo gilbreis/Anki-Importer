@@ -1,20 +1,15 @@
-# .NET
-**/bin/
-**/obj/
+# Python / PyInstaller
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.spec
 
-# Node
-**/node_modules/
-**/dist/
+# Installer output
+installer/output/
+artifacts/
 
-# Local MCP runtime data (contains device tokens)
-mcp-server/data/
-
-# Environment files
-.env
-.env.*
-!.env.example
-
-# OS/editor
+# OS / editor
 .DS_Store
 Thumbs.db
 .vscode/

@@ -22,21 +22,21 @@ jobs:
           python-version: "3.13"
 
       - name: Install PyInstaller
-        shell: pwsh
-        run: pip install -r local-importer/requirements.txt
+        run: python -m pip install pyinstaller
 
       - name: Build local importer EXE
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path artifacts/local-importer | Out-Null
-          pyinstaller `
+          python -m PyInstaller `
+            --noconfirm `
+            --clean `
             --onefile `
             --windowed `
             --name AnkiImporter `
-            --distpath artifacts/local-importer `
-            --workpath artifacts/pyinstaller-work `
-            --specpath artifacts `
             local-importer/app.py
+
+          New-Item -ItemType Directory -Force -Path artifacts/local-importer | Out-Null
+          Copy-Item dist/AnkiImporter.exe artifacts/local-importer/AnkiImporter.exe
 
       - name: Install Inno Setup
         shell: pwsh
