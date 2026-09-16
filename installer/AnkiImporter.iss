@@ -1,10 +1,10 @@
 #define MyAppName "Anki Importer"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "Anki Importer"
-#define MyAppExeName "AnkiImporter.Companion.exe"
+#define MyAppExeName "AnkiImporter.exe"
 
-#ifndef CompanionSource
-  #define CompanionSource "..\artifacts\companion\AnkiImporter.Companion.exe"
+#ifndef ImporterSource
+  #define ImporterSource "..\artifacts\local-importer\AnkiImporter.exe"
 #endif
 
 [Setup]
@@ -25,22 +25,19 @@ ArchitecturesAllowed=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 CloseApplications=yes
 RestartApplications=no
+ChangesAssociations=yes
 
 [Files]
-Source: "{#CompanionSource}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
+Source: "{#ImporterSource}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\Anki Importer"; Filename: "{app}\{#MyAppExeName}"; Parameters: "setup"
-Name: "{userstartup}\Anki Importer"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
+Name: "{autoprograms}\Anki Importer"; Filename: "{app}\{#MyAppExeName}"
 
 [Registry]
-Root: HKCU; Subkey: "Software\Classes\anki-importer"; ValueType: string; ValueName: ""; ValueData: "URL:Anki Importer Protocol"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\anki-importer"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
-Root: HKCU; Subkey: "Software\Classes\anki-importer\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
-Root: HKCU; Subkey: "Software\Classes\anki-importer\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.ankiimport"; ValueType: string; ValueName: ""; ValueData: "AnkiImporter.Package"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\AnkiImporter.Package"; ValueType: string; ValueName: ""; ValueData: "Pacote Anki Importer"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\AnkiImporter.Package\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
+Root: HKCU; Subkey: "Software\Classes\AnkiImporter.Package\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "setup"; Description: "Configurar Anki Importer"; Flags: nowait postinstall skipifsilent
-
-[UninstallDelete]
-Type: filesandordirs; Name: "{localappdata}\AnkiImporter"
+Filename: "{app}\{#MyAppExeName}"; Description: "Abrir Anki Importer"; Flags: nowait postinstall skipifsilent unchecked
