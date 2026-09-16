@@ -87,6 +87,26 @@ export class DeviceRegistry {
     await this.save();
   }
 
+  async removeDevice(accountId: string, deviceId: string): Promise<boolean> {
+    await this.ensureLoaded();
+    const account = this.data.accounts[accountId];
+    if (!account) return false;
+
+    const before = account.devices.length;
+    account.devices = account.devices.filter(item => item.deviceId !== deviceId);
+    if (account.devices.length === before) return false;
+
+    if (account.activeDeviceId === deviceId) {
+      account.activeDeviceId = account.devices[0]?.deviceId;
+    }
+
+    if (account.devices.length === 0) delete this.data.accounts[accountId];
+    else this.data.accounts[accountId] = account;
+
+    await this.save();
+    return true;
+  }
+
   async touch(deviceId: string): Promise<void> {
     await this.ensureLoaded();
     for (const account of Object.values(this.data.accounts)) {
