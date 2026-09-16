@@ -2,7 +2,7 @@ import { createServer as createHttpServer } from "node:http";
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 import * as z from "zod/v4";
-import { RelayClient, type ImportRequest } from "./RelayClient.js";
+import { DeviceHub } from "./DeviceHub.js";
 
 const cardSchema = z.object({
   front: z.string().min(1).describe("Portuguese text placed in the Anki Front field"),
@@ -21,11 +21,13 @@ const importSchema = z.object({
 function textResult(value: unknown) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-    structuredContent: typeof value === "object" && value !== null ? value as Record<string, unknown> : { value },
+    structuredContent: typeof value === "object" && value !== null
+      ? value as Record<string, unknown>
+      : { value },
   };
 }
 
-function createAnkiMcpServer(relay: RelayClient): McpServer {
+function createAnkiMcpServer(hub: DeviceHub, deviceId: string): McpServer {
   const server = new McpServer({
     name: "anki-vocabulary-importer",
     version: "0.1.0",
@@ -35,22 +37,25 @@ function createAnkiMcpServer(relay: RelayClient): McpServer {
     "anki_health",
     {
       title: "Check Anki Desktop connection",
-      description: "Check whether the user's paired Anki Desktop Companion and AnkiConnect are online. This tool is read-only.",
+      description: "Check whether the paired Anki Desktop Companion and AnkiConnect are online. This tool is read-only.",
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
-    async () => textResult(await relay.health()),
+    async () => {
+      if (!hub.isOnline(deviceId)) return textResult({ ok: false, deviceOnline: false });
+      return textResult(await hub.call(deviceId, "health"));
+    },
   );
 
   server.registerTool(
     "list_anki_decks",
     {
       title: "List Anki decks",
-      description: "List the decks available in the user's paired Anki Desktop. Use this before importing when the requested deck name is uncertain.",
+      description: "List decks available in the paired Anki Desktop. Use this before importing when the requested deck name is uncertain.",
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
-    async () => textResult(await relay.listDecks()),
+    async () => textResult(await hub.call(deviceId, "list-decks")),
   );
 
   server.registerTool(
@@ -61,7 +66,7 @@ function createAnkiMcpServer(relay: RelayClient): McpServer {
       inputSchema: importSchema,
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
-    async (input) => textResult(await relay.findDuplicates(input as ImportRequest)),
+    async input => textResult(await hub.call(deviceId, "find-duplicates", input)),
   );
 
   server.registerTool(
@@ -72,23 +77,17 @@ function createAnkiMcpServer(relay: RelayClient): McpServer {
       inputSchema: importSchema,
       annotations: { readOnlyHint: false, destructiveHint: false },
     },
-    async (input) => textResult(await relay.addCards(input as ImportRequest)),
+    async input => textResult(await hub.call(deviceId, "add-cards", input)),
   );
 
   return server;
 }
 
-const relayUrl = process.env.ANKI_RELAY_URL;
-const deviceId = process.env.ANKI_DEVICE_ID;
-const relayToken = process.env.ANKI_RELAY_TOKEN;
+const deviceId = process.env.ANKI_DEVICE_ID ?? "development-device";
+const agentToken = process.env.ANKI_AGENT_TOKEN;
+const hub = new DeviceHub(agentToken);
 
-if (!relayUrl || !deviceId) {
-  console.error("ANKI_RELAY_URL and ANKI_DEVICE_ID are required.");
-  process.exit(1);
-}
-
-const relay = new RelayClient(relayUrl, deviceId, relayToken);
-const mcpHandler = createMcpHandler(() => createAnkiMcpServer(relay));
+const mcpHandler = createMcpHandler(() => createAnkiMcpServer(hub, deviceId));
 const nodeMcpHandler = toNodeHandler(mcpHandler, {
   onerror(error) {
     console.error("MCP adapter error", error);
@@ -102,7 +101,7 @@ const httpServer = createHttpServer(async (req, res) => {
 
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: true }));
+    res.end(JSON.stringify({ ok: true, deviceId, deviceOnline: hub.isOnline(deviceId) }));
     return;
   }
 
@@ -115,6 +114,12 @@ const httpServer = createHttpServer(async (req, res) => {
   res.end(JSON.stringify({ error: "not_found" }));
 });
 
+httpServer.on("upgrade", (req, socket, head) => {
+  if (!hub.handleUpgrade(req, socket, head)) socket.destroy();
+});
+
 httpServer.listen(port, () => {
   console.error(`Anki Importer MCP server listening on port ${port}`);
+  console.error(`MCP endpoint: /mcp`);
+  console.error(`Desktop Companion WebSocket endpoint: /agent?deviceId=${encodeURIComponent(deviceId)}`);
 });
