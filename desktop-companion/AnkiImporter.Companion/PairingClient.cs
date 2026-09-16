@@ -18,6 +18,12 @@ public sealed class PairingClient
         string ticket,
         CancellationToken cancellationToken = default)
     {
+        if (!serverBaseUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("O link de conexão não é seguro. Gere um novo link no ChatGPT.");
+
+        if (string.IsNullOrWhiteSpace(ticket))
+            throw new InvalidOperationException("O link de conexão está incompleto.");
+
         using var response = await _http.PostAsJsonAsync(
             new Uri(serverBaseUri, "/pair/link/activate"),
             new { ticket },
