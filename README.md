@@ -24,14 +24,19 @@ Não há servidor, login adicional, conta, token, mensalidade ou processo perman
 
 Leia o passo a passo em [docs/GUIA-USUARIO.md](docs/GUIA-USUARIO.md).
 
+O AnkiConnect é obrigatório:
+
+- Página: https://ankiweb.net/shared/info/2055492159
+- Código: `2055492159`
+
 Resumo:
 
 1. Instale o Anki Desktop.
-2. Instale o AnkiConnect no Anki.
+2. Instale o AnkiConnect no Anki e reinicie o Anki.
 3. Instale `AnkiImporterSetup.exe` uma vez.
 4. No ChatGPT, envie o TXT e informe o nome do deck.
 5. Baixe o `.ankiimport` gerado e dê duplo clique.
-6. O importador verifica duplicados, adiciona apenas cartões novos, mostra o relatório e fecha.
+6. O importador verifica duplicados, gera o áudio em inglês, adiciona apenas cartões novos, mostra o relatório e fecha.
 
 ## Formato `.ankiimport`
 
@@ -41,6 +46,8 @@ Resumo:
   "model": "Basic",
   "frontField": "Front",
   "backField": "Back",
+  "tts": true,
+  "ttsLanguage": "en",
   "cards": [
     { "front": "montar", "back": "assemble" },
     { "front": "dividir", "back": "split" }
@@ -50,10 +57,24 @@ Resumo:
 
 O deck pode ter qualquer nome. Se não existir, o importador cria automaticamente.
 
+`tts` é opcional e assume `true` por padrão. O idioma padrão do áudio é inglês (`en`).
+
+## Como o cartão fica
+
+```text
+Front: montar
+Back: assemble + áudio TTS em inglês
+```
+
+O áudio é gerado com gTTS, salvo na mídia do Anki via AnkiConnect e referenciado no campo `Back` como `[sound:arquivo.mp3]`.
+
+A geração do TTS requer internet no momento da importação, mas não exige chave de API nem serviço pago. Se o áudio falhar, o cartão textual continua sendo criado.
+
 ## Regras
 
 - Português → `Front`
 - Inglês → `Back`
+- TTS em inglês → `Back`
 - Modelo padrão → `Basic`
 - Duplicados no arquivo são ignorados
 - Duplicados já existentes no deck são ignorados
@@ -74,5 +95,5 @@ docs/GUIA-USUARIO.md        manual do usuário final
 O GitHub Actions gera o instalador gratuitamente:
 
 ```text
-Python → PyInstaller → AnkiImporter.exe → Inno Setup → AnkiImporterSetup.exe
+Python + gTTS → PyInstaller → AnkiImporter.exe → Inno Setup → AnkiImporterSetup.exe
 ```
