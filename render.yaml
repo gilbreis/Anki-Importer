@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: anki-importer-mcp
+    runtime: docker
+    plan: free
+    rootDir: mcp-server
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: off
+    envVars:
+      - key: ANKI_DEV_ACCOUNT_ID
+        value: local-dev
+      - key: ANKI_REGISTRY_PATH
+        value: /app/data/device-registry.json
