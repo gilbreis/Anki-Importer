@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Windows.Forms;
 using AnkiImporter.Companion;
 
 using var ankiHttp = new HttpClient
@@ -20,24 +21,46 @@ var json = new JsonSerializerOptions(JsonSerializerDefaults.Web)
     WriteIndented = true
 };
 
-if (args.Length == 0)
-{
-    PrintUsage();
-    return;
-}
-
 try
 {
+    if (args.Length == 0)
+    {
+        var config = await CompanionConfigStore.LoadAsync();
+        if (config is null)
+        {
+            MessageBox.Show(
+                "O Anki Importer ainda não foi configurado. Execute novamente o instalador para concluir a conexão.",
+                "Anki Importer",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        var remoteAgent = new RemoteAgent(anki, importer);
+        await remoteAgent.RunForeverAsync(
+            new Uri(config.ServerUrl, UriKind.Absolute),
+            config.DeviceId,
+            config.DeviceToken);
+        return;
+    }
+
     switch (args[0].ToLowerInvariant())
     {
+        case "setup":
+        {
+            if (args.Length < 2)
+                throw new ArgumentException("Setup requires the service URL supplied by the installer.");
+
+            ApplicationConfiguration.Initialize();
+            using var wizard = new SetupWizard(anki, pairingClient, new Uri(args[1], UriKind.Absolute));
+            Application.Run(wizard);
+            break;
+        }
+
         case "health":
         {
             var version = await anki.InvokeAsync<int>("version");
-            Console.WriteLine(JsonSerializer.Serialize(new
-            {
-                ok = true,
-                ankiConnectVersion = version
-            }, json));
+            Console.WriteLine(JsonSerializer.Serialize(new { ok = true, ankiConnectVersion = version }, json));
             break;
         }
 
@@ -74,42 +97,18 @@ try
             if (args.Length < 2)
                 throw new ArgumentException("Usage: pair <server-url>");
 
-            var serverUri = new Uri(args[1], UriKind.Absolute);
-
-            var config = await pairingClient.PairAsync(
-                serverUri,
-                code =>
-                {
-                    Console.WriteLine();
-                    Console.WriteLine("Pairing code:");
-                    Console.WriteLine();
-                    Console.WriteLine($"    {code}");
-                    Console.WriteLine();
-                    Console.WriteLine("In ChatGPT, ask the Anki Importer plugin to pair this code.");
-                    Console.WriteLine("Waiting for confirmation...");
-                });
-
+            var config = await pairingClient.PairAsync(new Uri(args[1], UriKind.Absolute), Console.WriteLine);
             await CompanionConfigStore.SaveAsync(config);
-
-            Console.WriteLine(JsonSerializer.Serialize(new
-            {
-                paired = true,
-                deviceId = config.DeviceId,
-                configPath = CompanionConfigStore.ConfigPath
-            }, json));
+            Console.WriteLine(JsonSerializer.Serialize(new { paired = true, deviceId = config.DeviceId }, json));
             break;
         }
 
         case "run":
         {
             var config = await CompanionConfigStore.LoadAsync()
-                         ?? throw new InvalidOperationException("Companion is not paired. Run 'pair <server-url>' first.");
-
+                         ?? throw new InvalidOperationException("Companion is not paired.");
             var remoteAgent = new RemoteAgent(anki, importer);
-            await remoteAgent.RunForeverAsync(
-                new Uri(config.ServerUrl, UriKind.Absolute),
-                config.DeviceId,
-                config.DeviceToken);
+            await remoteAgent.RunForeverAsync(new Uri(config.ServerUrl), config.DeviceId, config.DeviceToken);
             break;
         }
 
@@ -118,22 +117,17 @@ try
             var config = await CompanionConfigStore.LoadAsync();
             var ankiOnline = false;
             int? ankiConnectVersion = null;
-
             try
             {
                 ankiConnectVersion = await anki.InvokeAsync<int>("version");
                 ankiOnline = true;
             }
-            catch
-            {
-                // Status should still report pairing state when Anki is closed.
-            }
+            catch { }
 
             Console.WriteLine(JsonSerializer.Serialize(new
             {
                 paired = config is not null,
                 deviceId = config?.DeviceId,
-                serverUrl = config?.ServerUrl,
                 pairedAtUtc = config?.PairedAtUtc,
                 ankiOnline,
                 ankiConnectVersion
@@ -142,26 +136,24 @@ try
         }
 
         case "unpair":
-        {
             CompanionConfigStore.Delete();
-            Console.WriteLine(JsonSerializer.Serialize(new { paired = false }, json));
             break;
-        }
 
         default:
-            Console.Error.WriteLine($"Unknown command: {args[0]}");
-            PrintUsage();
-            Environment.ExitCode = 2;
-            break;
+            throw new ArgumentException("Unknown internal command.");
     }
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine(JsonSerializer.Serialize(new
+    if (args.Length > 0 && args[0].Equals("setup", StringComparison.OrdinalIgnoreCase))
     {
-        ok = false,
-        error = ex.Message
-    }, json));
+        MessageBox.Show(ex.Message, "Anki Importer", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+    else
+    {
+        Console.Error.WriteLine(JsonSerializer.Serialize(new { ok = false, error = ex.Message }, json));
+    }
+
     Environment.ExitCode = 1;
 }
 
@@ -177,18 +169,4 @@ static async Task<ImportRequest> ReadRequestAsync(string[] args)
     await using var stream = File.OpenRead(path);
     var request = await JsonSerializer.DeserializeAsync<ImportRequest>(stream, new JsonSerializerOptions(JsonSerializerDefaults.Web));
     return request ?? throw new InvalidOperationException("Invalid import request JSON.");
-}
-
-static void PrintUsage()
-{
-    Console.WriteLine("Anki Importer Companion");
-    Console.WriteLine("Commands:");
-    Console.WriteLine("  health");
-    Console.WriteLine("  status");
-    Console.WriteLine("  list-decks");
-    Console.WriteLine("  find-duplicates <request.json>");
-    Console.WriteLine("  add-cards <request.json>");
-    Console.WriteLine("  pair <server-url>");
-    Console.WriteLine("  run");
-    Console.WriteLine("  unpair");
 }
