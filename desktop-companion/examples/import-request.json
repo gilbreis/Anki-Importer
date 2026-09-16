@@ -1,0 +1,20 @@
+{
+  "deck": "English",
+  "model": "Basic",
+  "frontField": "Front",
+  "backField": "Back",
+  "cards": [
+    {
+      "front": "montar",
+      "back": "assemble"
+    },
+    {
+      "front": "dividir",
+      "back": "split"
+    },
+    {
+      "front": "para-choque",
+      "back": "the bumper"
+    }
+  ]
+}
