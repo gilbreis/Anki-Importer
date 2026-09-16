@@ -1,83 +1,120 @@
 # Anki Importer
 
-Anki Importer makes vocabulary import from ChatGPT to Anki Desktop simple enough for non-technical users.
+Anki Importer importa vocabulário do ChatGPT para o Anki Desktop com o mínimo de passos possível.
 
-## Target experience
+## Experiência do usuário
 
-1. Install **Anki Importer** once.
-2. Open Anki Desktop with AnkiConnect enabled.
-3. In ChatGPT, attach a `.txt` file and ask:
+1. Instale `AnkiImporterSetup.exe` uma única vez.
+2. Abra o Anki Desktop com o AnkiConnect instalado.
+3. No ChatGPT, anexe o `.txt` e informe o deck desejado, por exemplo:
 
 ```text
-@anki vocabulary importer Deck "English"
+Deck "English"
 ```
 
-4. If the computer is not connected yet, click **Conectar este computador**.
-5. The integration parses `Portuguese = English`, checks duplicates against the real Anki deck, adds only new cards, and returns a compact report.
+4. O ChatGPT gera um arquivo `.ankiimport`.
+5. Dê duplo clique nesse arquivo.
+6. O Anki Importer verifica duplicados, adiciona somente os cartões novos, mostra o relatório e fecha.
 
-The normal user flow must not require terminal commands, server URLs, tokens, ports, or manual configuration.
+Não há servidor, login adicional, conta, token, URL, terminal, mensalidade ou processo permanente em segundo plano.
 
-## Developer: one-click test deployment
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2Fgilbreis%2FAnki-Importer)
-
-The repository includes `render.yaml`, so the test MCP/relay service can be created from the repository without manually entering Docker settings, health checks, or development account configuration.
-
-> The current Blueprint intentionally uses Render's free plan for private end-to-end testing. Its local filesystem is not production persistence. Production distribution will use persistent account/device storage and production identity instead of the development account resolver.
-
-## Architecture
+## Arquitetura
 
 ```text
-ChatGPT Web
-   |
-   v
-ChatGPT Plugin / App
-   |
-   v
-MCP / Relay Service
-   |
-   v
-Anki Desktop Companion
-   |
-   v
-AnkiConnect (127.0.0.1:8765)
-   |
-   v
+TXT + nome do deck
+       |
+       v
+ChatGPT gera .ankiimport
+       |
+       v
+duplo clique no Windows
+       |
+       v
+Anki Importer local (.exe)
+       |
+       v
+AnkiConnect 127.0.0.1:8765
+       |
+       v
 Anki Desktop
-   |
-   v
-AnkiWeb Sync
 ```
 
-## MVP scope
+## Formato `.ankiimport`
 
-- Parse vocabulary in the format `portuguese = english`
-- Select destination deck
-- Validate AnkiConnect availability
-- List decks
-- Check duplicates by Front field
-- Add cards using `Basic` / `Front` / `Back`
-- UTF-8 support for Portuguese accents
-- Return counts for added, duplicate, invalid, and failed cards
-- Keep AnkiConnect local; never expose port `8765` to the internet
-- One-click computer pairing through the installed Windows Companion
+O arquivo é JSON UTF-8 com esta estrutura:
 
-## Repository structure
+```json
+{
+  "deck": "English",
+  "model": "Basic",
+  "frontField": "Front",
+  "backField": "Back",
+  "cards": [
+    { "front": "montar", "back": "assemble" },
+    { "front": "dividir", "back": "split" }
+  ]
+}
+```
+
+O nome do deck pode ser qualquer um. Se o deck não existir, o importador cria automaticamente.
+
+## Regras de importação
+
+- Português vai para `Front`.
+- Inglês vai para `Back`.
+- Modelo padrão: `Basic`.
+- Campos padrão: `Front` e `Back`.
+- Duplicados dentro do próprio pacote são ignorados.
+- Duplicados já existentes no deck são ignorados.
+- Cartões existentes nunca são sobrescritos ou apagados.
+- Acentos são preservados em UTF-8.
+
+## Relatório
+
+Ao terminar, o aplicativo mostra algo como:
 
 ```text
-chatgpt-plugin/       ChatGPT-facing instructions and integration notes
-mcp-server/           Remote MCP/relay service
-desktop-companion/    Local Windows bridge to AnkiConnect
-shared/schemas/       Shared request/response contracts
-installer/            Windows Setup.exe flow
-docs/                 Architecture and product documentation
-render.yaml           One-click private test deployment
+Deck: English
+
+Encontradas: 20
+Adicionadas: 17
+Duplicadas: 3
+Inválidas: 0
+Erros: 0
 ```
 
-## Security principle
+## Requisitos
 
-AnkiConnect remains bound to localhost (`127.0.0.1:8765`). The Desktop Companion communicates locally with Anki and establishes only outbound authenticated communication to the relay. Device credentials are not placed in WebSocket URLs.
+- Windows x64.
+- Anki Desktop.
+- AnkiConnect instalado no Anki.
 
-## Current status
+O usuário não precisa instalar Python. O aplicativo Python é empacotado como `.exe` com PyInstaller e distribuído dentro do `AnkiImporterSetup.exe`.
 
-The AnkiConnect path has been validated with API version 6 and real UTF-8 `addNote` insertion. The Windows Companion, Setup.exe, one-click pairing flow, MCP build, duplicate checking, and card insertion pipeline are implemented and CI-built. The next milestone is the first hosted end-to-end test from ChatGPT to a real local Anki deck.
+## Build
+
+O GitHub Actions gera gratuitamente:
+
+```text
+AnkiImporterSetup.exe
+```
+
+Fluxo de build:
+
+```text
+Python
+  -> PyInstaller
+  -> AnkiImporter.exe
+  -> Inno Setup
+  -> AnkiImporterSetup.exe
+```
+
+## Estrutura principal
+
+```text
+local-importer/       Importador local em Python
+installer/            Instalador Windows e associação .ankiimport
+.github/workflows/    Build e release do Setup.exe
+```
+
+Os diretórios antigos de experimentos remotos podem permanecer temporariamente no repositório, mas não fazem parte da arquitetura do produto local.
