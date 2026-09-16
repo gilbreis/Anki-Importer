@@ -31,8 +31,21 @@ function textResult(value: unknown) {
   };
 }
 
+function resolvePublicBaseUrl(): string | undefined {
+  const explicit = process.env.ANKI_PUBLIC_BASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const renderUrl = process.env.RENDER_EXTERNAL_URL?.trim();
+  if (renderUrl) return renderUrl.replace(/\/$/, "");
+
+  const renderHost = process.env.RENDER_EXTERNAL_HOSTNAME?.trim();
+  if (renderHost) return `https://${renderHost.replace(/\/$/, "")}`;
+
+  return undefined;
+}
+
 const registryPath = process.env.ANKI_REGISTRY_PATH ?? "./data/device-registry.json";
-const publicBaseUrl = process.env.ANKI_PUBLIC_BASE_URL?.replace(/\/$/, "");
+const publicBaseUrl = resolvePublicBaseUrl();
 const installerUrl = process.env.ANKI_INSTALLER_URL ??
   "https://github.com/gilbreis/Anki-Importer/releases/latest/download/AnkiImporterSetup.exe";
 const registry = new DeviceRegistry(registryPath);
@@ -268,7 +281,11 @@ const httpServer = createHttpServer(async (req, res) => {
     });
 
     res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
-    res.end(JSON.stringify({ paired: true, deviceId: creds.deviceId, deviceToken: creds.deviceToken }));
+    res.end(JSON.stringify({
+      paired: true,
+      deviceId: creds.deviceId,
+      deviceToken: creds.deviceToken,
+    }));
     return;
   }
 
@@ -341,4 +358,5 @@ httpServer.listen(port, () => {
   console.error("MCP endpoint: /mcp");
   console.error("Desktop Companion pairing endpoint: /pair/start");
   console.error(`Device registry: ${registryPath}`);
+  console.error(`Public base URL: ${publicBaseUrl ?? "not configured"}`);
 });
