@@ -73,10 +73,7 @@ function createAnkiMcpServer(): McpServer {
         createdAt: new Date().toISOString(),
       });
 
-      return textResult({
-        paired: true,
-        deviceId: session.deviceId,
-      });
+      return textResult({ paired: true, deviceId: session.deviceId });
     },
   );
 
@@ -102,6 +99,21 @@ function createAnkiMcpServer(): McpServer {
     async ({ deviceId }) => {
       await registry.setActiveDevice(getCurrentAccountId(), deviceId);
       return textResult({ selected: true, deviceId });
+    },
+  );
+
+  server.registerTool(
+    "revoke_anki_device",
+    {
+      title: "Revoke paired Anki device",
+      description: "Permanently revoke a paired Anki Desktop Companion from the authenticated account. Its existing device token will no longer authenticate new connections.",
+      inputSchema: z.object({ deviceId: z.string().uuid() }),
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    async ({ deviceId }) => {
+      const removed = await registry.removeDevice(getCurrentAccountId(), deviceId);
+      if (!removed) throw new Error("The specified device is not paired to this account.");
+      return textResult({ revoked: true, deviceId });
     },
   );
 
