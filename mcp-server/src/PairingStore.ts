@@ -11,9 +11,17 @@ export interface PairingSession {
   deviceToken?: string;
 }
 
+interface LinkPairingSession {
+  ticket: string;
+  accountId: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
 export class PairingStore {
   private readonly sessionsById = new Map<string, PairingSession>();
   private readonly idByCode = new Map<string, string>();
+  private readonly linksByTicket = new Map<string, LinkPairingSession>();
 
   constructor(private readonly ttlMs = 10 * 60 * 1000) {}
 
@@ -35,6 +43,33 @@ export class PairingStore {
     this.sessionsById.set(pairingId, session);
     this.idByCode.set(pairingCode, pairingId);
     return session;
+  }
+
+  createLink(accountId: string): LinkPairingSession {
+    this.cleanup();
+    const now = Date.now();
+    const ticket = randomBytes(32).toString("base64url");
+    const session: LinkPairingSession = {
+      ticket,
+      accountId,
+      createdAt: now,
+      expiresAt: now + this.ttlMs,
+    };
+    this.linksByTicket.set(ticket, session);
+    return session;
+  }
+
+  activateLink(ticket: string): { accountId: string; deviceId: string; deviceToken: string } | null {
+    this.cleanup();
+    const session = this.linksByTicket.get(ticket);
+    if (!session) return null;
+
+    this.linksByTicket.delete(ticket);
+    return {
+      accountId: session.accountId,
+      deviceId: randomUUID(),
+      deviceToken: randomBytes(32).toString("base64url"),
+    };
   }
 
   claim(pairingCode: string, accountId: string): PairingSession | null {
@@ -80,9 +115,12 @@ export class PairingStore {
 
     for (const [pairingId, session] of this.sessionsById.entries()) {
       if (session.expiresAt > now) continue;
-
       this.sessionsById.delete(pairingId);
       this.idByCode.delete(session.pairingCode);
+    }
+
+    for (const [ticket, session] of this.linksByTicket.entries()) {
+      if (session.expiresAt <= now) this.linksByTicket.delete(ticket);
     }
   }
 
@@ -93,7 +131,6 @@ export class PairingStore {
       const bytes = randomBytes(6);
       let code = "";
       for (const byte of bytes) code += alphabet[byte % alphabet.length];
-
       if (!this.idByCode.has(code)) return code;
     }
   }
