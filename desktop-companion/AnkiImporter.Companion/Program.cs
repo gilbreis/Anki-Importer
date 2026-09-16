@@ -23,13 +23,40 @@ var json = new JsonSerializerOptions(JsonSerializerDefaults.Web)
 
 try
 {
+    if (args.Length > 0 && Uri.TryCreate(args[0], UriKind.Absolute, out var protocolUri) &&
+        protocolUri.Scheme.Equals("anki-importer", StringComparison.OrdinalIgnoreCase))
+    {
+        if (!protocolUri.Host.Equals("pair", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Link do Anki Importer não reconhecido.");
+
+        var query = System.Web.HttpUtility.ParseQueryString(protocolUri.Query);
+        var server = query["server"];
+        var ticket = query["ticket"];
+
+        if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(ticket))
+            throw new InvalidOperationException("Link de conexão incompleto.");
+
+        var config = await pairingClient.ActivateLinkAsync(new Uri(server, UriKind.Absolute), ticket);
+        await CompanionConfigStore.SaveAsync(config);
+
+        MessageBox.Show(
+            "Este computador foi conectado ao Anki Importer com sucesso.",
+            "Anki Importer",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+
+        var remoteAgent = new RemoteAgent(anki, importer);
+        await remoteAgent.RunForeverAsync(new Uri(config.ServerUrl), config.DeviceId, config.DeviceToken);
+        return;
+    }
+
     if (args.Length == 0)
     {
         var config = await CompanionConfigStore.LoadAsync();
         if (config is null)
         {
             MessageBox.Show(
-                "O Anki Importer ainda não foi configurado. Execute novamente o instalador para concluir a conexão.",
+                "O Anki Importer ainda não foi conectado ao ChatGPT. Abra o app Anki Importer no ChatGPT e clique em Conectar este computador.",
                 "Anki Importer",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -145,7 +172,8 @@ try
 }
 catch (Exception ex)
 {
-    if (args.Length > 0 && args[0].Equals("setup", StringComparison.OrdinalIgnoreCase))
+    if (args.Length > 0 &&
+        (args[0].Equals("setup", StringComparison.OrdinalIgnoreCase) || args[0].StartsWith("anki-importer://", StringComparison.OrdinalIgnoreCase)))
     {
         MessageBox.Show(ex.Message, "Anki Importer", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
