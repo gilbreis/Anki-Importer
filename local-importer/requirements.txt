@@ -1,1 +1,2 @@
 pyinstaller==6.16.0
+gTTS>=2.5,<3
