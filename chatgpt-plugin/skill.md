@@ -2,17 +2,19 @@
 
 ## Purpose
 
-Import Portuguese-to-English vocabulary from user-provided text files into the user's paired Anki Desktop through the Anki Importer app.
+Generate a local `.ankiimport` package from a user-provided vocabulary text file. The user then opens that file on Windows and the locally installed Anki Importer sends the cards to Anki Desktop through AnkiConnect.
 
 ## Invocation
 
-Typical explicit invocation:
+Typical invocation:
 
 ```text
-@anki vocabulary importer Deck "English"
+Deck "English"
 ```
 
-The user may attach a `.txt` file containing chat transcripts, timestamps, names, blank lines, and vocabulary entries.
+with an attached `.txt` file.
+
+The deck name may be any value supplied by the user.
 
 ## Expected vocabulary format
 
@@ -30,103 +32,104 @@ dividir = split
 para-choque = the bumper
 ```
 
-Ignore transcript metadata such as timestamps, sender names, headers, and blank lines unless they are part of a valid mapping.
+Ignore transcript metadata such as timestamps, sender names, headers and blank lines unless they are part of a valid mapping.
 
 ## Card mapping
 
 - Front: Portuguese text from the left side of `=`.
 - Back: English text from the right side of `=`.
-- Default note model: `Basic`.
+- Default model: `Basic`.
 - Default fields: `Front` and `Back`.
-- Destination deck: exact deck requested by the user.
-
-Do not silently switch to a different deck when an exact deck name was supplied.
+- Destination deck: exact deck name supplied by the user.
 
 ## Normalization
-
-Before sending cards:
 
 1. Trim leading/trailing whitespace.
 2. Collapse repeated internal whitespace.
 3. Preserve Portuguese accents and punctuation.
 4. Preserve the English translation as supplied unless there is an obvious formatting-only issue.
 5. Detect duplicate Front values inside the uploaded batch case-insensitively.
+6. Do not invent translations for missing values.
 
-Do not invent translations for missing values. Mark malformed entries as invalid instead.
+Malformed entries are excluded from the generated package and counted as invalid in the ChatGPT-side preparation summary.
 
 ## Required workflow
 
-### 1. Verify Anki connection
+### 1. Read the attached TXT
 
-Call `anki_health` before a write operation.
-
-If no device is paired or the account has no active Companion, do not show technical setup instructions. Call `create_anki_connection_link` and present the returned HTTPS URL to the user as **Conectar este computador**.
-
-The connection page handles both cases:
-- Companion already installed: opens it through the registered `anki-importer://` protocol and pairs automatically.
-- Companion not installed: offers the Windows `AnkiImporterSetup.exe`; after installation the user returns to the same connection page and clicks **Conectar este computador**.
-
-Do not ask the user for a server URL, port, bearer token, environment variable, PowerShell command, device token or pairing code in the normal flow.
-
-`claim_anki_pairing` is fallback/development behavior only. Do not use it unless the one-click flow is unavailable and the user is explicitly troubleshooting.
-
-If multiple paired devices exist and there is no clear active device, call `list_anki_devices` and let the user choose. Use `select_anki_device` only after the intended device is clear.
+Extract only valid `Portuguese = English` mappings.
 
 ### 2. Resolve the deck
 
-When the user supplied an exact deck name, use it exactly.
+Use the exact deck name supplied by the user. Do not silently substitute a similarly named deck.
 
-If the deck name is missing or uncertain, call `list_anki_decks` and ask/select based on the user's instruction. Never guess a similarly named deck when multiple matches exist.
+### 3. Prepare the local package
 
-### 3. Check duplicates
+Generate a UTF-8 JSON file with extension `.ankiimport` using this structure:
 
-Call `find_vocabulary_duplicates` with the complete validated batch before writing.
+```json
+{
+  "deck": "English",
+  "model": "Basic",
+  "frontField": "Front",
+  "backField": "Back",
+  "cards": [
+    { "front": "montar", "back": "assemble" },
+    { "front": "dividir", "back": "split" }
+  ]
+}
+```
 
-Duplicate Front values already present in the selected deck must not be overwritten.
+Use a filename based on the deck when practical, for example:
 
-### 4. Add cards
+```text
+English.ankiimport
+Business-English.ankiimport
+```
 
-Call `add_vocabulary_cards` with the validated batch. The backend is responsible for rechecking duplicates before creation.
+### 4. Return the file
 
-### 5. Report outcome
+Provide the generated `.ankiimport` file directly to the user.
 
-Return a compact report containing:
+The user only needs to double-click it after installing `AnkiImporterSetup.exe` once.
 
-- destination deck;
-- number found in the source;
-- number added;
-- duplicates skipped;
-- invalid entries;
-- errors.
+### 5. Local importer responsibility
 
-When useful, list the added and skipped words.
+The Windows Anki Importer is responsible for:
+
+- talking only to local AnkiConnect at `127.0.0.1:8765`;
+- creating the destination deck if it does not exist;
+- checking duplicates already present in the destination deck;
+- checking duplicates again locally before insertion;
+- adding only new cards;
+- never overwriting or deleting existing cards;
+- showing the final report to the user;
+- exiting after the import completes.
 
 ## End-user UX rule
 
-The normal product experience is installation and use, not infrastructure configuration.
-
-Expected first-run flow:
+Normal usage must remain:
 
 ```text
-Install AnkiImporterSetup.exe
-→ Next
-→ Install
-→ Finish
-→ return to ChatGPT
-→ Conectar este computador
-→ connected
+install once
+→ attach TXT in ChatGPT
+→ say Deck "..."
+→ download .ankiimport
+→ double-click
+→ done
 ```
 
-All server, WebSocket, authentication, port and device-routing details must remain behind the product.
+Do not introduce server URLs, Render, MCP hosting, OAuth, login, tokens, PowerShell, ports, WebSockets, pairing codes or any other infrastructure step into the end-user flow.
+
+The solution must remain free to use and local-only apart from the normal ChatGPT interaction used to prepare the package.
 
 ## Safety and data handling
 
-- Never expose or ask the user to paste the Companion device token.
-- Never instruct the user to expose AnkiConnect port `8765` to the internet.
-- AnkiConnect must remain local at `127.0.0.1:8765`.
-- One-click pairing tickets are short-lived and single-use.
-- Existing cards must not be modified or deleted by the vocabulary import workflow.
+- Never expose AnkiConnect port `8765` to the internet.
+- Existing cards must not be modified or deleted.
+- Preserve UTF-8 accents and punctuation.
+- The `.ankiimport` package contains only the requested deck/mapping information and vocabulary cards.
 
 ## Future audio behavior
 
-Audio/TTS is not part of the current MVP. When implemented, generated English pronunciation audio should be attached to the Back side without changing the Front/Back vocabulary mapping or duplicate rules.
+Audio/TTS is not part of the current MVP. When implemented, English pronunciation audio should remain compatible with this local-only flow and must not require a paid service for basic use.
