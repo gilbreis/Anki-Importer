@@ -47,3 +47,4 @@ jobs:
           name: AnkiImporter-Companion-win-x64
           path: artifacts/companion/**
           if-no-files-found: error
+          retention-days: 14
