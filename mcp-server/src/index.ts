@@ -2,8 +2,10 @@ import { createServer as createHttpServer } from "node:http";
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 import * as z from "zod/v4";
+import { AccountAuth } from "./AccountAuth.js";
+import { getCurrentAccountId, runWithAccount } from "./AccountContext.js";
 import { DeviceHub } from "./DeviceHub.js";
-import { DeviceCredentialStore } from "./DeviceCredentialStore.js";
+import { DeviceRegistry } from "./DeviceRegistry.js";
 import { PairingStore } from "./PairingStore.js";
 
 const cardSchema = z.object({
@@ -29,39 +31,47 @@ function textResult(value: unknown) {
   };
 }
 
-const credentials = new DeviceCredentialStore();
+const registryPath = process.env.ANKI_REGISTRY_PATH ?? "./data/device-registry.json";
+const registry = new DeviceRegistry(registryPath);
+await registry.ensureLoaded();
+
+const auth = new AccountAuth();
 const pairing = new PairingStore();
-let activeDeviceId: string | null = null;
+const hub = new DeviceHub(async (deviceId, token) => registry.validateDevice(deviceId, token));
 
-const hub = new DeviceHub((deviceId, token) => credentials.validate(deviceId, token));
-
-function requireActiveDeviceId(): string {
-  if (!activeDeviceId) throw new Error("No Anki Desktop Companion is paired yet.");
-  return activeDeviceId;
+async function requireActiveDeviceId(): Promise<string> {
+  const accountId = getCurrentAccountId();
+  const deviceId = await registry.getActiveDeviceId(accountId);
+  if (!deviceId) throw new Error("No Anki Desktop Companion is paired to this account yet.");
+  return deviceId;
 }
 
 function createAnkiMcpServer(): McpServer {
   const server = new McpServer({
     name: "anki-vocabulary-importer",
-    version: "0.2.0",
+    version: "0.3.0",
   });
 
   server.registerTool(
     "claim_anki_pairing",
     {
       title: "Pair Anki Desktop Companion",
-      description: "Claim a short pairing code displayed by the Anki Desktop Companion. Use this once during setup.",
+      description: "Claim a short pairing code displayed by the Anki Desktop Companion and associate that device with the authenticated account.",
       inputSchema: z.object({ pairingCode: z.string().min(4).max(16) }),
       annotations: { readOnlyHint: false, destructiveHint: false },
     },
     async ({ pairingCode }) => {
-      const session = pairing.claim(pairingCode);
+      const accountId = getCurrentAccountId();
+      const session = pairing.claim(pairingCode, accountId);
       if (!session?.deviceId || !session.deviceToken) {
         throw new Error("Pairing code is invalid, expired, or already used.");
       }
 
-      credentials.register(session.deviceId, session.deviceToken);
-      activeDeviceId = session.deviceId;
+      await registry.registerDevice(accountId, {
+        deviceId: session.deviceId,
+        token: session.deviceToken,
+        createdAt: new Date().toISOString(),
+      });
 
       return textResult({
         paired: true,
@@ -71,16 +81,42 @@ function createAnkiMcpServer(): McpServer {
   );
 
   server.registerTool(
+    "list_anki_devices",
+    {
+      title: "List paired Anki devices",
+      description: "List Anki Desktop Companion devices paired with the authenticated account and show which one is active.",
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    },
+    async () => textResult({ devices: await registry.listDevices(getCurrentAccountId()) }),
+  );
+
+  server.registerTool(
+    "select_anki_device",
+    {
+      title: "Select active Anki device",
+      description: "Choose which paired Anki Desktop Companion should receive subsequent Anki operations for this account.",
+      inputSchema: z.object({ deviceId: z.string().uuid() }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async ({ deviceId }) => {
+      await registry.setActiveDevice(getCurrentAccountId(), deviceId);
+      return textResult({ selected: true, deviceId });
+    },
+  );
+
+  server.registerTool(
     "anki_health",
     {
       title: "Check Anki Desktop connection",
-      description: "Check whether the paired Anki Desktop Companion and AnkiConnect are online. This tool is read-only.",
+      description: "Check whether the active paired Anki Desktop Companion and AnkiConnect are online. This tool is read-only.",
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
-      const deviceId = requireActiveDeviceId();
-      if (!hub.isOnline(deviceId)) return textResult({ ok: false, deviceOnline: false });
+      const deviceId = await requireActiveDeviceId();
+      if (!hub.isOnline(deviceId)) return textResult({ ok: false, deviceOnline: false, deviceId });
+      await registry.touch(deviceId);
       return textResult(await hub.call(deviceId, "health"));
     },
   );
@@ -89,11 +125,15 @@ function createAnkiMcpServer(): McpServer {
     "list_anki_decks",
     {
       title: "List Anki decks",
-      description: "List decks available in the paired Anki Desktop. Use this before importing when the requested deck name is uncertain.",
+      description: "List decks available in the active paired Anki Desktop. Use this before importing when the requested deck name is uncertain.",
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
-    async () => textResult(await hub.call(requireActiveDeviceId(), "list-decks")),
+    async () => {
+      const deviceId = await requireActiveDeviceId();
+      await registry.touch(deviceId);
+      return textResult(await hub.call(deviceId, "list-decks"));
+    },
   );
 
   server.registerTool(
@@ -104,7 +144,11 @@ function createAnkiMcpServer(): McpServer {
       inputSchema: importSchema,
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
-    async input => textResult(await hub.call(requireActiveDeviceId(), "find-duplicates", input)),
+    async input => {
+      const deviceId = await requireActiveDeviceId();
+      await registry.touch(deviceId);
+      return textResult(await hub.call(deviceId, "find-duplicates", input));
+    },
   );
 
   server.registerTool(
@@ -115,7 +159,11 @@ function createAnkiMcpServer(): McpServer {
       inputSchema: importSchema,
       annotations: { readOnlyHint: false, destructiveHint: false },
     },
-    async input => textResult(await hub.call(requireActiveDeviceId(), "add-cards", input)),
+    async input => {
+      const deviceId = await requireActiveDeviceId();
+      await registry.touch(deviceId);
+      return textResult(await hub.call(deviceId, "add-cards", input));
+    },
   );
 
   return server;
@@ -130,16 +178,17 @@ const nodeMcpHandler = toNodeHandler(mcpHandler, {
 
 const port = Number(process.env.PORT ?? "3000");
 
+function unauthorized(res: import("node:http").ServerResponse) {
+  res.writeHead(401, { "content-type": "application/json", "www-authenticate": "Bearer" });
+  res.end(JSON.stringify({ error: "unauthorized" }));
+}
+
 const httpServer = createHttpServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({
-      ok: true,
-      activeDeviceId,
-      deviceOnline: activeDeviceId ? hub.isOnline(activeDeviceId) : false,
-    }));
+    res.end(JSON.stringify({ ok: true }));
     return;
   }
 
@@ -182,9 +231,6 @@ const httpServer = createHttpServer(async (req, res) => {
       return;
     }
 
-    credentials.register(creds.deviceId, creds.deviceToken);
-    activeDeviceId = creds.deviceId;
-
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({
       paired: true,
@@ -195,7 +241,13 @@ const httpServer = createHttpServer(async (req, res) => {
   }
 
   if (url.pathname === "/mcp") {
-    await nodeMcpHandler(req, res);
+    const accountId = auth.resolve(req);
+    if (!accountId) {
+      unauthorized(res);
+      return;
+    }
+
+    await runWithAccount(accountId, () => nodeMcpHandler(req, res));
     return;
   }
 
@@ -203,12 +255,18 @@ const httpServer = createHttpServer(async (req, res) => {
   res.end(JSON.stringify({ error: "not_found" }));
 });
 
-httpServer.on("upgrade", (req, socket, head) => {
-  if (!hub.handleUpgrade(req, socket, head)) socket.destroy();
+httpServer.on("upgrade", async (req, socket, head) => {
+  try {
+    if (!await hub.handleUpgrade(req, socket, head)) socket.destroy();
+  } catch (error) {
+    console.error("WebSocket upgrade error", error);
+    socket.destroy();
+  }
 });
 
 httpServer.listen(port, () => {
   console.error(`Anki Importer MCP server listening on port ${port}`);
   console.error("MCP endpoint: /mcp");
   console.error("Desktop Companion pairing endpoint: /pair/start");
+  console.error(`Device registry: ${registryPath}`);
 });
