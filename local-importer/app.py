@@ -2,6 +2,7 @@ import base64
 import hashlib
 import html
 import json
+import re
 import sys
 import tkinter as tk
 from io import BytesIO
@@ -14,6 +15,7 @@ from gtts import gTTS
 
 ANKI_URL = "http://127.0.0.1:8765"
 APP_TITLE = "Anki Importer"
+SOUND_RE = re.compile(r"\[sound:[^\]]+\]", re.IGNORECASE)
 
 
 def anki(action, params=None):
@@ -56,19 +58,34 @@ def normalize(value):
     return " ".join(str(value or "").split()).strip()
 
 
-def existing_fronts(deck, front_field):
+def existing_notes_by_front(deck, front_field, back_field):
     note_ids = anki("findNotes", {"query": f'deck:"{deck.replace(chr(34), "")}"'}) or []
     if not note_ids:
-        return set()
+        return {}
 
     notes = anki("notesInfo", {"notes": note_ids}) or []
-    values = set()
+    values = {}
     for note in notes:
-        field = (note.get("fields") or {}).get(front_field)
-        if isinstance(field, dict):
-            value = normalize(field.get("value"))
-            if value:
-                values.add(value.casefold())
+        fields = note.get("fields") or {}
+        front_data = fields.get(front_field)
+        back_data = fields.get(back_field)
+        if not isinstance(front_data, dict):
+            continue
+
+        front = normalize(front_data.get("value"))
+        if not front:
+            continue
+
+        back_value = ""
+        if isinstance(back_data, dict):
+            back_value = str(back_data.get("value") or "")
+
+        values.setdefault(front.casefold(), {
+            "noteId": note.get("noteId"),
+            "front": front,
+            "back": back_value,
+            "hasAudio": bool(SOUND_RE.search(back_value)),
+        })
     return values
 
 
@@ -85,6 +102,22 @@ def create_tts_audio(text, language="en"):
     return stored_name
 
 
+def append_audio_to_existing_note(note_id, back_field, current_back, audio_name):
+    if not note_id:
+        raise RuntimeError("Não foi possível identificar o cartão existente no Anki.")
+
+    current_back = str(current_back or "").rstrip()
+    separator = "<br>" if current_back else ""
+    updated_back = f"{current_back}{separator}[sound:{audio_name}]"
+
+    anki("updateNoteFields", {
+        "note": {
+            "id": note_id,
+            "fields": {back_field: updated_back},
+        }
+    })
+
+
 def import_package(package):
     deck = package["deck"]
     model = package["model"]
@@ -98,11 +131,14 @@ def import_package(package):
     if deck not in decks:
         anki("createDeck", {"deck": deck})
 
-    existing = existing_fronts(deck, front_field)
+    existing = existing_notes_by_front(deck, front_field, back_field)
     seen = set()
-    valid = []
+    new_cards = []
     duplicates = 0
     invalid = 0
+    existing_audio_added = 0
+    existing_audio_errors = []
+    audio_cache = {}
 
     for card in package["cards"]:
         if not isinstance(card, dict):
@@ -116,20 +152,44 @@ def import_package(package):
             continue
 
         key = front.casefold()
-        if key in seen or key in existing:
+        if key in seen:
             duplicates += 1
             continue
-
         seen.add(key)
-        valid.append((front, back, card.get("tags") or []))
+
+        existing_note = existing.get(key)
+        if existing_note:
+            if tts_enabled and not existing_note["hasAudio"]:
+                try:
+                    cache_key = (tts_language, back.casefold())
+                    audio_name = audio_cache.get(cache_key)
+                    if not audio_name:
+                        audio_name = create_tts_audio(back, tts_language)
+                        audio_cache[cache_key] = audio_name
+
+                    append_audio_to_existing_note(
+                        existing_note["noteId"],
+                        back_field,
+                        existing_note["back"],
+                        audio_name,
+                    )
+                    existing_note["hasAudio"] = True
+                    existing_note["back"] = f'{existing_note["back"]}<br>[sound:{audio_name}]'
+                    existing_audio_added += 1
+                except Exception:
+                    existing_audio_errors.append(front)
+            else:
+                duplicates += 1
+            continue
+
+        new_cards.append((front, back, card.get("tags") or []))
 
     notes = []
     prepared = []
     audio_generated = 0
     audio_errors = []
-    audio_cache = {}
 
-    for front, back, tags in valid:
+    for front, back, tags in new_cards:
         back_value = html.escape(back)
 
         if tts_enabled:
@@ -170,7 +230,9 @@ def import_package(package):
         "duplicates": duplicates,
         "invalid": invalid,
         "audioGenerated": audio_generated,
+        "existingAudioAdded": existing_audio_added,
         "audioErrors": audio_errors,
+        "existingAudioErrors": existing_audio_errors,
         "errors": errors,
     }
 
@@ -202,15 +264,18 @@ def main():
         report = import_package(package)
         error_count = len(report["errors"])
         audio_error_count = len(report["audioErrors"])
+        existing_audio_error_count = len(report["existingAudioErrors"])
         messagebox.showinfo(
             APP_TITLE,
             f'Deck: {report["deck"]}\n\n'
             f'Encontradas: {report["found"]}\n'
-            f'Adicionadas: {report["added"]}\n'
-            f'Duplicadas: {report["duplicates"]}\n'
+            f'Novos cartões: {report["added"]}\n'
+            f'Duplicadas ignoradas: {report["duplicates"]}\n'
+            f'Áudio adicionado em existentes: {report["existingAudioAdded"]}\n'
             f'Inválidas: {report["invalid"]}\n'
-            f'Áudios TTS: {report["audioGenerated"]}\n'
-            f'Erros de áudio: {audio_error_count}\n'
+            f'Áudios em novos cartões: {report["audioGenerated"]}\n'
+            f'Erros de áudio em novos: {audio_error_count}\n'
+            f'Erros de áudio em existentes: {existing_audio_error_count}\n'
             f'Erros: {error_count}',
         )
     except Exception as exc:
