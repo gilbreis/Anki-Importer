@@ -32,6 +32,7 @@ function textResult(value: unknown) {
 }
 
 const registryPath = process.env.ANKI_REGISTRY_PATH ?? "./data/device-registry.json";
+const publicBaseUrl = process.env.ANKI_PUBLIC_BASE_URL?.replace(/\/$/, "");
 const registry = new DeviceRegistry(registryPath);
 await registry.ensureLoaded();
 
@@ -49,14 +50,32 @@ async function requireActiveDeviceId(): Promise<string> {
 function createAnkiMcpServer(): McpServer {
   const server = new McpServer({
     name: "anki-vocabulary-importer",
-    version: "0.3.0",
+    version: "0.4.0",
   });
+
+  server.registerTool(
+    "create_anki_connection_link",
+    {
+      title: "Connect this computer to Anki Importer",
+      description: "Create a short-lived HTTPS link that opens the installed Anki Importer Companion and pairs it with the authenticated account. Prefer this over manual pairing codes.",
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async () => {
+      if (!publicBaseUrl) throw new Error("One-click pairing is not configured on this server.");
+      const session = pairing.createLink(getCurrentAccountId());
+      return textResult({
+        connectUrl: `${publicBaseUrl}/connect?ticket=${encodeURIComponent(session.ticket)}`,
+        expiresAt: new Date(session.expiresAt).toISOString(),
+      });
+    },
+  );
 
   server.registerTool(
     "claim_anki_pairing",
     {
       title: "Pair Anki Desktop Companion",
-      description: "Claim a short pairing code displayed by the Anki Desktop Companion and associate that device with the authenticated account.",
+      description: "Fallback setup only: claim a short pairing code displayed by the Anki Desktop Companion.",
       inputSchema: z.object({ pairingCode: z.string().min(4).max(16) }),
       annotations: { readOnlyHint: false, destructiveHint: false },
     },
@@ -196,6 +215,11 @@ function unauthorized(res: import("node:http").ServerResponse) {
   res.end(JSON.stringify({ error: "unauthorized" }));
 }
 
+function html(res: import("node:http").ServerResponse, status: number, body: string) {
+  res.writeHead(status, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+  res.end(body);
+}
+
 const httpServer = createHttpServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
@@ -205,14 +229,55 @@ const httpServer = createHttpServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/connect") {
+    const ticket = url.searchParams.get("ticket")?.trim();
+    if (!ticket || !publicBaseUrl) {
+      html(res, 400, "<h1>Link de conexão inválido.</h1>");
+      return;
+    }
+
+    const launch = `anki-importer://pair?server=${encodeURIComponent(publicBaseUrl)}&ticket=${encodeURIComponent(ticket)}`;
+    html(res, 200, `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conectar Anki Importer</title></head><body style="font-family:Segoe UI,Arial,sans-serif;max-width:620px;margin:80px auto;padding:24px;text-align:center"><h1>Conectar Anki Importer</h1><p>Abra o Anki Importer instalado neste computador para concluir a conexão.</p><p><a style="display:inline-block;padding:14px 22px;background:#111;color:white;border-radius:8px;text-decoration:none" href="${launch}">Conectar este computador</a></p><p style="color:#666;font-size:14px">Se nada acontecer, instale o Anki Importer e tente novamente.</p><script>setTimeout(()=>{location.href=${JSON.stringify(launch)}},350);</script></body></html>`);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/pair/link/activate") {
+    let raw = "";
+    for await (const chunk of req) raw += chunk;
+    let ticket = "";
+    try {
+      const parsed = JSON.parse(raw || "{}") as { ticket?: string };
+      ticket = parsed.ticket?.trim() ?? "";
+    } catch {
+      // handled below
+    }
+
+    const creds = ticket ? pairing.activateLink(ticket) : null;
+    if (!creds) {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "pairing_link_invalid_or_expired" }));
+      return;
+    }
+
+    await registry.registerDevice(creds.accountId, {
+      deviceId: creds.deviceId,
+      token: creds.deviceToken,
+      createdAt: new Date().toISOString(),
+    });
+
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    res.end(JSON.stringify({
+      paired: true,
+      deviceId: creds.deviceId,
+      deviceToken: creds.deviceToken,
+    }));
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/pair/start") {
     const session = pairing.create();
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({
-      pairingId: session.pairingId,
-      pairingCode: session.pairingCode,
-      expiresAt: new Date(session.expiresAt).toISOString(),
-    }));
+    res.end(JSON.stringify({ pairingId: session.pairingId, pairingCode: session.pairingCode, expiresAt: new Date(session.expiresAt).toISOString() }));
     return;
   }
 
@@ -245,11 +310,7 @@ const httpServer = createHttpServer(async (req, res) => {
     }
 
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({
-      paired: true,
-      deviceId: creds.deviceId,
-      deviceToken: creds.deviceToken,
-    }));
+    res.end(JSON.stringify({ paired: true, deviceId: creds.deviceId, deviceToken: creds.deviceToken }));
     return;
   }
 
