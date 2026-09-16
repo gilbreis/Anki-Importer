@@ -33,6 +33,8 @@ function textResult(value: unknown) {
 
 const registryPath = process.env.ANKI_REGISTRY_PATH ?? "./data/device-registry.json";
 const publicBaseUrl = process.env.ANKI_PUBLIC_BASE_URL?.replace(/\/$/, "");
+const installerUrl = process.env.ANKI_INSTALLER_URL ??
+  "https://github.com/gilbreis/Anki-Importer/releases/latest/download/AnkiImporterSetup.exe";
 const registry = new DeviceRegistry(registryPath);
 await registry.ensureLoaded();
 
@@ -237,7 +239,7 @@ const httpServer = createHttpServer(async (req, res) => {
     }
 
     const launch = `anki-importer://pair?server=${encodeURIComponent(publicBaseUrl)}&ticket=${encodeURIComponent(ticket)}`;
-    html(res, 200, `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conectar Anki Importer</title></head><body style="font-family:Segoe UI,Arial,sans-serif;max-width:620px;margin:80px auto;padding:24px;text-align:center"><h1>Conectar Anki Importer</h1><p>Abra o Anki Importer instalado neste computador para concluir a conexão.</p><p><a style="display:inline-block;padding:14px 22px;background:#111;color:white;border-radius:8px;text-decoration:none" href="${launch}">Conectar este computador</a></p><p style="color:#666;font-size:14px">Se nada acontecer, instale o Anki Importer e tente novamente.</p><script>setTimeout(()=>{location.href=${JSON.stringify(launch)}},350);</script></body></html>`);
+    html(res, 200, `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conectar Anki Importer</title></head><body style="font-family:Segoe UI,Arial,sans-serif;max-width:620px;margin:80px auto;padding:24px;text-align:center"><h1>Conectar Anki Importer</h1><p>Abra o Anki Importer instalado neste computador para concluir a conexão.</p><p><a style="display:inline-block;padding:14px 22px;background:#111;color:white;border-radius:8px;text-decoration:none" href="${launch}">Conectar este computador</a></p><p style="margin-top:30px;color:#666">Ainda não instalou?</p><p><a href="${installerUrl}">Instalar Anki Importer</a></p><p style="color:#777;font-size:13px">Depois da instalação, volte a esta página e clique em Conectar este computador.</p><script>setTimeout(()=>{location.href=${JSON.stringify(launch)}},350);</script></body></html>`);
     return;
   }
 
@@ -266,11 +268,7 @@ const httpServer = createHttpServer(async (req, res) => {
     });
 
     res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
-    res.end(JSON.stringify({
-      paired: true,
-      deviceId: creds.deviceId,
-      deviceToken: creds.deviceToken,
-    }));
+    res.end(JSON.stringify({ paired: true, deviceId: creds.deviceId, deviceToken: creds.deviceToken }));
     return;
   }
 
