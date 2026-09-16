@@ -132,7 +132,8 @@ O Anki Importer fará automaticamente:
 - verificação de palavras duplicadas no próprio arquivo;
 - verificação de palavras que já existem no deck;
 - geração do áudio em inglês;
-- inclusão somente das palavras novas.
+- criação apenas dos cartões realmente novos;
+- complemento de áudio em cartões existentes que ainda não possuem áudio.
 
 ### Passo 5 — Confira o resultado
 
@@ -142,11 +143,13 @@ Ao terminar aparece uma janela semelhante a:
 Deck: English
 
 Encontradas: 20
-Adicionadas: 17
-Duplicadas: 3
+Novos cartões: 12
+Duplicadas ignoradas: 5
+Áudio adicionado em existentes: 3
 Inválidas: 0
-Áudios TTS: 17
-Erros de áudio: 0
+Áudios em novos cartões: 12
+Erros de áudio em novos: 0
+Erros de áudio em existentes: 0
 Erros: 0
 ```
 
@@ -204,13 +207,50 @@ Isso evita perder a importação por causa de um problema temporário de áudio.
 
 ---
 
-## 5. Duplicados
+## 5. Duplicados e cartões já existentes
 
-O importador não adiciona novamente uma palavra que já exista no mesmo deck.
+O Anki Importer nunca cria um segundo cartão com o mesmo `Front` dentro do mesmo deck.
 
-Exemplo: se `montar` já estiver no deck `English`, ela será contabilizada como **Duplicada** e não será criada novamente.
+A regra é:
 
-Nenhum cartão existente é alterado ou apagado.
+```text
+Palavra não existe no deck
+→ cria o cartão com texto + áudio
+
+Palavra já existe e já possui áudio no Back
+→ não cria outro cartão e ignora a entrada
+
+Palavra já existe, mas ainda não possui áudio no Back
+→ não cria outro cartão
+→ mantém o texto existente
+→ adiciona somente o áudio ao Back existente
+```
+
+Exemplo:
+
+Se o deck `English` já contém:
+
+```text
+Front: dividir
+Back: split
+```
+
+sem áudio, uma nova importação de:
+
+```text
+dividir = split
+```
+
+não criará outro cartão. O cartão existente será atualizado para algo equivalente a:
+
+```text
+Front: dividir
+Back: split + 🔊 áudio em inglês
+```
+
+Se o cartão já contiver um marcador de áudio `[sound:...]`, ele será considerado completo e será ignorado.
+
+Nenhum cartão existente é apagado e nenhum cartão duplicado é criado.
 
 ---
 
@@ -282,7 +322,9 @@ Baixar .ankiimport
    ↓
 Dar duplo clique
    ↓
-Texto + áudio adicionados ao Anki
+Novos cartões são criados
+Cartões existentes sem áudio recebem o áudio
+Duplicados completos são ignorados
    ↓
 Pronto
 ```
