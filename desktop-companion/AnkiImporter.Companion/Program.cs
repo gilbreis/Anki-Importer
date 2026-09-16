@@ -75,11 +75,8 @@ try
     {
         case "setup":
         {
-            if (args.Length < 2)
-                throw new ArgumentException("Setup requires the service URL supplied by the installer.");
-
             ApplicationConfiguration.Initialize();
-            using var wizard = new SetupWizard(anki, pairingClient, new Uri(args[1], UriKind.Absolute));
+            using var wizard = new SetupWizard(anki);
             Application.Run(wizard);
             break;
         }
