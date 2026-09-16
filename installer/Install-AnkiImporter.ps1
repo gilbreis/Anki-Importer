@@ -4,7 +4,7 @@ param(
 
     [string]$CompanionExe,
 
-    [string]$DownloadUrl
+    [string]$DownloadUrl = "https://github.com/gilbreis/Anki-Importer/releases/latest/download/AnkiImporter.Companion.exe"
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,12 +25,12 @@ if ($CompanionExe) {
     $source = (Resolve-Path $CompanionExe).Path
     Copy-Item -LiteralPath $source -Destination $InstalledExe -Force
 }
-elif ($DownloadUrl) {
+elseif ($DownloadUrl) {
     Write-Host "Downloading Companion..."
     Invoke-WebRequest -Uri $DownloadUrl -OutFile $InstalledExe -UseBasicParsing
 }
 else {
-    throw "Provide either -CompanionExe or -DownloadUrl. A stable release URL will become the default once GitHub Releases is enabled."
+    throw "Provide either -CompanionExe or -DownloadUrl."
 }
 
 Write-Host "Installed: $InstalledExe"
