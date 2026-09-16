@@ -63,6 +63,24 @@ try
             break;
         }
 
+        case "agent":
+        {
+            var serverUrl = GetRequiredSetting(args, 1, "ANKI_SERVER_URL", "Server URL is required.");
+            var deviceId = GetRequiredSetting(args, 2, "ANKI_DEVICE_ID", "Device id is required.");
+            var token = args.Length > 3 ? args[3] : Environment.GetEnvironmentVariable("ANKI_AGENT_TOKEN");
+
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, eventArgs) =>
+            {
+                eventArgs.Cancel = true;
+                cts.Cancel();
+            };
+
+            var agent = new RemoteAgent(anki, importer);
+            await agent.RunForeverAsync(new Uri(serverUrl), deviceId, token, cts.Token);
+            break;
+        }
+
         default:
             Console.Error.WriteLine($"Unknown command: {args[0]}");
             PrintUsage();
@@ -94,6 +112,13 @@ static async Task<ImportRequest> ReadRequestAsync(string[] args)
     return request ?? throw new InvalidOperationException("Invalid import request JSON.");
 }
 
+static string GetRequiredSetting(string[] args, int index, string environmentVariable, string error)
+{
+    var value = args.Length > index ? args[index] : Environment.GetEnvironmentVariable(environmentVariable);
+    if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException(error);
+    return value;
+}
+
 static void PrintUsage()
 {
     Console.WriteLine("Anki Importer Companion");
@@ -102,4 +127,7 @@ static void PrintUsage()
     Console.WriteLine("  list-decks");
     Console.WriteLine("  find-duplicates <request.json>");
     Console.WriteLine("  add-cards <request.json>");
+    Console.WriteLine("  agent <server-url> <device-id> [token]");
+    Console.WriteLine();
+    Console.WriteLine("Agent settings can also come from ANKI_SERVER_URL, ANKI_DEVICE_ID, and ANKI_AGENT_TOKEN.");
 }
