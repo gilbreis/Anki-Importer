@@ -4,6 +4,8 @@ import type { Duplex } from "node:stream";
 import { WebSocketServer, WebSocket } from "ws";
 
 interface PendingRequest {
+  deviceId: string;
+  socket: WebSocket;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
@@ -29,7 +31,7 @@ export class DeviceHub {
     if (url.pathname !== "/agent") return false;
 
     const deviceId = url.searchParams.get("deviceId")?.trim();
-    const token = url.searchParams.get("token") ?? "";
+    const token = this.readBearerToken(req);
 
     if (!deviceId || !token || !await this.authenticate(deviceId, token)) {
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
@@ -43,13 +45,9 @@ export class DeviceHub {
 
       this.devices.set(deviceId, ws);
 
-      ws.on("message", data => this.onMessage(data.toString()));
-      ws.on("close", () => {
-        if (this.devices.get(deviceId) === ws) this.devices.delete(deviceId);
-      });
-      ws.on("error", () => {
-        if (this.devices.get(deviceId) === ws) this.devices.delete(deviceId);
-      });
+      ws.on("message", data => this.onMessage(deviceId, ws, data.toString()));
+      ws.on("close", () => this.onDisconnect(deviceId, ws));
+      ws.on("error", () => this.onDisconnect(deviceId, ws));
 
       ws.send(JSON.stringify({ type: "connected", deviceId }));
     });
@@ -66,6 +64,7 @@ export class DeviceHub {
     if (!ws) return;
 
     this.devices.delete(deviceId);
+    this.rejectPendingForSocket(ws, new Error(reason));
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
       ws.close(4003, reason);
     }
@@ -85,7 +84,7 @@ export class DeviceHub {
         reject(new Error(`Timed out waiting for device '${deviceId}' to execute '${action}'.`));
       }, timeoutMs);
 
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { deviceId, socket: ws, resolve, reject, timer });
 
       ws.send(JSON.stringify({
         type: "command",
@@ -101,7 +100,7 @@ export class DeviceHub {
     });
   }
 
-  private onMessage(raw: string): void {
+  private onMessage(deviceId: string, ws: WebSocket, raw: string): void {
     let message: DeviceMessage;
     try {
       message = JSON.parse(raw) as DeviceMessage;
@@ -112,12 +111,32 @@ export class DeviceHub {
     if (message.type !== "result" || !message.id) return;
 
     const item = this.pending.get(message.id);
-    if (!item) return;
+    if (!item || item.deviceId !== deviceId || item.socket !== ws) return;
 
     clearTimeout(item.timer);
     this.pending.delete(message.id);
 
     if (message.ok) item.resolve(message.result);
     else item.reject(new Error(message.error || "Unknown device error."));
+  }
+
+  private onDisconnect(deviceId: string, ws: WebSocket): void {
+    if (this.devices.get(deviceId) === ws) this.devices.delete(deviceId);
+    this.rejectPendingForSocket(ws, new Error(`Anki device '${deviceId}' disconnected.`));
+  }
+
+  private rejectPendingForSocket(ws: WebSocket, error: Error): void {
+    for (const [id, item] of this.pending.entries()) {
+      if (item.socket !== ws) continue;
+      clearTimeout(item.timer);
+      this.pending.delete(id);
+      item.reject(error);
+    }
+  }
+
+  private readBearerToken(req: IncomingMessage): string {
+    const header = req.headers.authorization?.trim() ?? "";
+    const match = /^Bearer\s+(.+)$/i.exec(header);
+    return match?.[1]?.trim() ?? "";
   }
 }
