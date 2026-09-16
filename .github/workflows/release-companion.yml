@@ -39,14 +39,17 @@ jobs:
       - name: Build Setup.exe
         shell: pwsh
         run: |
-          $roots = @(
-            $env:ProgramFiles,
-            ${env:ProgramFiles(x86)},
-            $env:LOCALAPPDATA
-          ) | Where-Object { $_ -and (Test-Path $_) }
+          $candidates = @(
+            (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 7\ISCC.exe"),
+            (Join-Path $env:ProgramFiles "Inno Setup 7\ISCC.exe"),
+            (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 7\ISCC.exe")
+          )
 
-          $iscc = Get-ChildItem -Path $roots -Filter ISCC.exe -File -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -First 1 -ExpandProperty FullName
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($iscc)) {
+            $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+            if ($command) { $iscc = $command.Source }
+          }
 
           if ([string]::IsNullOrWhiteSpace($iscc)) {
             throw "ISCC.exe was not found after installing Inno Setup."
