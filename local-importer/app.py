@@ -1,10 +1,16 @@
+import base64
+import hashlib
+import html
 import json
 import sys
 import tkinter as tk
+from io import BytesIO
 from pathlib import Path
 from tkinter import filedialog, messagebox
-from urllib.request import Request, urlopen
 from urllib.error import URLError
+from urllib.request import Request, urlopen
+
+from gtts import gTTS
 
 ANKI_URL = "http://127.0.0.1:8765"
 APP_TITLE = "Anki Importer"
@@ -40,6 +46,8 @@ def load_package(path: Path):
         "model": str(data.get("model") or "Basic"),
         "frontField": str(data.get("frontField") or "Front"),
         "backField": str(data.get("backField") or "Back"),
+        "tts": bool(data.get("tts", True)),
+        "ttsLanguage": str(data.get("ttsLanguage") or "en"),
         "cards": cards,
     }
 
@@ -64,11 +72,26 @@ def existing_fronts(deck, front_field):
     return values
 
 
+def create_tts_audio(text, language="en"):
+    digest = hashlib.sha256(f"{language}\0{text}".encode("utf-8")).hexdigest()[:20]
+    filename = f"anki_importer_tts_{digest}.mp3"
+
+    audio = BytesIO()
+    gTTS(text=text, lang=language, slow=False, lang_check=False).write_to_fp(audio)
+    encoded = base64.b64encode(audio.getvalue()).decode("ascii")
+    stored_name = anki("storeMediaFile", {"filename": filename, "data": encoded})
+    if not stored_name:
+        raise RuntimeError("O Anki não conseguiu armazenar o áudio TTS.")
+    return stored_name
+
+
 def import_package(package):
     deck = package["deck"]
     model = package["model"]
     front_field = package["frontField"]
     back_field = package["backField"]
+    tts_enabled = package["tts"]
+    tts_language = package["ttsLanguage"]
 
     anki("version")
     decks = set(anki("deckNames") or [])
@@ -101,20 +124,40 @@ def import_package(package):
         valid.append((front, back, card.get("tags") or []))
 
     notes = []
+    prepared = []
+    audio_generated = 0
+    audio_errors = []
+    audio_cache = {}
+
     for front, back, tags in valid:
+        back_value = html.escape(back)
+
+        if tts_enabled:
+            try:
+                cache_key = (tts_language, back.casefold())
+                audio_name = audio_cache.get(cache_key)
+                if not audio_name:
+                    audio_name = create_tts_audio(back, tts_language)
+                    audio_cache[cache_key] = audio_name
+                back_value = f"{back_value}<br>[sound:{audio_name}]"
+                audio_generated += 1
+            except Exception:
+                audio_errors.append(front)
+
         notes.append({
             "deckName": deck,
             "modelName": model,
-            "fields": {front_field: front, back_field: back},
+            "fields": {front_field: html.escape(front), back_field: back_value},
             "options": {"allowDuplicate": False},
             "tags": ["chatgpt-import", *[str(t) for t in tags if str(t).strip()]],
         })
+        prepared.append((front, back))
 
     added = 0
     errors = []
     if notes:
         results = anki("addNotes", {"notes": notes}) or []
-        for note, note_id in zip(valid, results):
+        for note, note_id in zip(prepared, results):
             if note_id is None:
                 errors.append(note[0])
             else:
@@ -126,6 +169,8 @@ def import_package(package):
         "added": added,
         "duplicates": duplicates,
         "invalid": invalid,
+        "audioGenerated": audio_generated,
+        "audioErrors": audio_errors,
         "errors": errors,
     }
 
@@ -156,6 +201,7 @@ def main():
         package = load_package(path)
         report = import_package(package)
         error_count = len(report["errors"])
+        audio_error_count = len(report["audioErrors"])
         messagebox.showinfo(
             APP_TITLE,
             f'Deck: {report["deck"]}\n\n'
@@ -163,6 +209,8 @@ def main():
             f'Adicionadas: {report["added"]}\n'
             f'Duplicadas: {report["duplicates"]}\n'
             f'Inválidas: {report["invalid"]}\n'
+            f'Áudios TTS: {report["audioGenerated"]}\n'
+            f'Erros de áudio: {audio_error_count}\n'
             f'Erros: {error_count}',
         )
     except Exception as exc:
