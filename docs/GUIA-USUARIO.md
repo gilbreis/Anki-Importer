@@ -45,11 +45,39 @@ Pronto. O AnkiConnect fica instalado e o Anki Importer poderá acessar o Anki lo
 
 ### 1.3 Instale o Anki Importer
 
-1. Baixe `AnkiImporterSetup.exe`.
+1. Baixe `AnkiImporterSetup.exe` pelo botão **Baixar Anki Importer** na página principal do projeto.
 2. Dê duplo clique no instalador.
-3. Clique em **Next / Avançar**.
-4. Clique em **Install / Instalar**.
-5. Clique em **Finish / Concluir**.
+
+#### Aviso do Windows SmartScreen
+
+Na primeira instalação, o Windows pode mostrar a mensagem:
+
+```text
+Windows protected your PC
+Microsoft Defender SmartScreen prevented an unrecognized app from starting.
+Publisher: Unknown publisher
+```
+
+Isso acontece porque o `AnkiImporterSetup.exe` ainda **não possui um certificado comercial de assinatura de código**. Por esse motivo, o Windows não consegue mostrar um publicador verificado e trata o instalador como um aplicativo ainda sem reputação conhecida.
+
+**Esse aviso, por si só, não significa que o Windows encontrou vírus ou malware no Anki Importer.** Ele informa que o executável não está assinado por um publicador reconhecido pelo SmartScreen.
+
+O projeto é aberto e o código-fonte utilizado para gerar o instalador está disponível neste próprio repositório GitHub.
+
+Se você baixou o arquivo pelo botão oficial deste repositório, prossiga assim:
+
+1. Na janela **Windows protected your PC**, clique em **More info / Mais informações**.
+2. Confira que o aplicativo exibido é `AnkiImporterSetup.exe`.
+3. Clique em **Run anyway / Executar mesmo assim**.
+4. O instalador do Anki Importer será aberto normalmente.
+
+> Evite executar cópias do instalador recebidas por e-mail, mensagens ou sites de terceiros. Prefira sempre o botão de download deste repositório.
+
+#### Continue a instalação
+
+1. Clique em **Next / Avançar**.
+2. Clique em **Install / Instalar**.
+3. Clique em **Finish / Concluir**.
 
 Essa instalação é feita uma única vez. Você não precisa instalar Python.
 
@@ -188,6 +216,12 @@ Nenhum cartão existente é alterado ou apagado.
 
 ## 6. Se algo não funcionar
 
+### O Windows mostra "Windows protected your PC"
+
+Isso pode acontecer porque o instalador ainda aparece como **Unknown publisher**. Volte à seção **1.3 Instale o Anki Importer** deste guia e siga **More info / Mais informações → Run anyway / Executar mesmo assim**.
+
+Esse aviso não é, sozinho, uma detecção de vírus. Baixe sempre o instalador diretamente deste repositório.
+
 ### Mensagem: não foi possível acessar o Anki
 
 Confira:
@@ -229,7 +263,12 @@ Instalar AnkiConnect (2055492159)
    ↓
 Reiniciar Anki
    ↓
-Instalar AnkiImporterSetup.exe
+Baixar AnkiImporterSetup.exe do GitHub
+   ↓
+Se aparecer SmartScreen:
+More info → Run anyway
+   ↓
+Instalar Anki Importer
 ```
 
 ### Uso normal
