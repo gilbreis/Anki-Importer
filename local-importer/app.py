@@ -5,6 +5,7 @@ import json
 import re
 import sys
 import tkinter as tk
+import webbrowser
 from io import BytesIO
 from pathlib import Path
 from tkinter import filedialog, messagebox
@@ -15,7 +16,46 @@ from gtts import gTTS
 
 ANKI_URL = "http://127.0.0.1:8765"
 APP_TITLE = "Anki Importer"
+APP_VERSION = "0.2.0"
+VERSION_URL = "https://raw.githubusercontent.com/gilbreis/Anki-Importer/main/local-importer/version.txt"
+DOWNLOAD_URL = "https://github.com/gilbreis/Anki-Importer/releases/download/latest/AnkiImporterSetup.exe"
 SOUND_RE = re.compile(r"\[sound:[^\]]+\]", re.IGNORECASE)
+
+
+def version_tuple(value):
+    parts = []
+    for part in str(value).strip().split("."):
+        try:
+            parts.append(int(part))
+        except ValueError:
+            return ()
+    return tuple(parts)
+
+
+def check_for_update():
+    try:
+        request = Request(VERSION_URL, headers={"User-Agent": f"AnkiImporter/{APP_VERSION}"})
+        with urlopen(request, timeout=3) as response:
+            latest = response.read().decode("utf-8").strip()
+
+        current_version = version_tuple(APP_VERSION)
+        latest_version = version_tuple(latest)
+        if not current_version or not latest_version or latest_version <= current_version:
+            return
+
+        download = messagebox.askyesno(
+            "Atualização disponível",
+            f"Uma nova versão do Anki Importer está disponível.\n\n"
+            f"Versão instalada: {APP_VERSION}\n"
+            f"Nova versão: {latest}\n\n"
+            "Deseja abrir o download da atualização agora?\n\n"
+            "Você pode escolher Não e continuar a importação normalmente.",
+        )
+        if download:
+            webbrowser.open(DOWNLOAD_URL)
+    except Exception:
+        # A falta de internet ou indisponibilidade do GitHub nunca impede a importação.
+        pass
 
 
 def anki(action, params=None):
@@ -249,6 +289,8 @@ def main():
     root = tk.Tk()
     root.withdraw()
 
+    check_for_update()
+
     path = None
     if len(sys.argv) >= 2:
         candidate = Path(sys.argv[1])
@@ -266,7 +308,7 @@ def main():
         audio_error_count = len(report["audioErrors"])
         existing_audio_error_count = len(report["existingAudioErrors"])
         messagebox.showinfo(
-            APP_TITLE,
+            f"{APP_TITLE} {APP_VERSION}",
             f'Deck: {report["deck"]}\n\n'
             f'Encontradas: {report["found"]}\n'
             f'Novos cartões: {report["added"]}\n'
@@ -279,7 +321,7 @@ def main():
             f'Erros: {error_count}',
         )
     except Exception as exc:
-        messagebox.showerror(APP_TITLE, str(exc))
+        messagebox.showerror(f"{APP_TITLE} {APP_VERSION}", str(exc))
 
 
 if __name__ == "__main__":
