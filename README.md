@@ -2,6 +2,15 @@
 
 Importador local e gratuito de vocabulário do ChatGPT para o Anki Desktop.
 
+<p align="center">
+  <a href="https://github.com/gilbreis/Anki-Importer/releases/download/latest/AnkiImporterSetup.exe">
+    <img alt="Baixar Anki Importer" src="https://img.shields.io/badge/Baixar-AnkiImporterSetup.exe-2ea44f?style=for-the-badge&logo=windows">
+  </a>
+  <a href="docs/GUIA-USUARIO.md">
+    <img alt="Guia de Instalação" src="https://img.shields.io/badge/Guia-Instalação-0969da?style=for-the-badge&logo=readthedocs">
+  </a>
+</p>
+
 ## Como funciona
 
 ```text
