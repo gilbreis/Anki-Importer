@@ -1,0 +1,48 @@
+name: Release Windows Companion
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish single-file Windows executable
+        shell: pwsh
+        run: |
+          dotnet publish desktop-companion/AnkiImporter.Companion/AnkiImporter.Companion.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            /p:PublishSingleFile=true `
+            /p:IncludeNativeLibrariesForSelfExtract=true `
+            --output artifacts/companion
+
+          Copy-Item `
+            artifacts/companion/AnkiImporter.Companion.exe `
+            artifacts/AnkiImporter.Companion.exe
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            artifacts/AnkiImporter.Companion.exe `
+            --repo "${{ github.repository }}" `
+            --title "Anki Importer ${{ github.ref_name }}" `
+            --generate-notes
