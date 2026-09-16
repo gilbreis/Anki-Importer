@@ -13,6 +13,33 @@ public sealed class PairingClient
         _http = http;
     }
 
+    public async Task<CompanionConfig> ActivateLinkAsync(
+        Uri serverBaseUri,
+        string ticket,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _http.PostAsJsonAsync(
+            new Uri(serverBaseUri, "/pair/link/activate"),
+            new { ticket },
+            _json,
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException("Este link de conexão expirou ou já foi utilizado. Gere um novo link no ChatGPT.");
+
+        var result = await response.Content.ReadFromJsonAsync<LinkActivationResponse>(_json, cancellationToken)
+                     ?? throw new InvalidOperationException("O servidor de conexão retornou uma resposta vazia.");
+
+        if (!result.Paired || string.IsNullOrWhiteSpace(result.DeviceId) || string.IsNullOrWhiteSpace(result.DeviceToken))
+            throw new InvalidOperationException("Não foi possível concluir a conexão deste computador.");
+
+        return new CompanionConfig(
+            serverBaseUri.ToString().TrimEnd('/'),
+            result.DeviceId,
+            result.DeviceToken,
+            DateTimeOffset.UtcNow);
+    }
+
     public async Task<CompanionConfig> PairAsync(
         Uri serverBaseUri,
         Action<string>? showCode = null,
@@ -58,4 +85,5 @@ public sealed class PairingClient
 
     private sealed record PairStartResponse(string PairingId, string PairingCode, DateTimeOffset ExpiresAt);
     private sealed record PairStatusResponse(bool Paired, string? DeviceId, string? DeviceToken);
+    private sealed record LinkActivationResponse(bool Paired, string? DeviceId, string? DeviceToken);
 }
