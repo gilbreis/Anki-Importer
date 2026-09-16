@@ -11,6 +11,16 @@ Importador local e gratuito de vocabulário do ChatGPT para o Anki Desktop.
   </a>
 </p>
 
+> **Aviso do Windows SmartScreen**
+>
+> O instalador ainda não possui certificado comercial de assinatura de código e pode aparecer como **Unknown publisher**. Nesse caso o Windows pode exibir **Windows protected your PC**.
+>
+> Esse aviso, por si só, **não significa que o Windows detectou vírus**; significa que o executável ainda não tem um publicador reconhecido pelo SmartScreen.
+>
+> Se você baixou o arquivo pelo botão oficial acima, clique em **More info / Mais informações** e depois em **Run anyway / Executar mesmo assim**.
+>
+> Para detalhes, consulte o [Guia de Instalação](docs/GUIA-USUARIO.md).
+
 ## Como funciona
 
 ```text
