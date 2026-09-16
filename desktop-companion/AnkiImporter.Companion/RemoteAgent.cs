@@ -51,7 +51,11 @@ public sealed class RemoteAgent
         CancellationToken cancellationToken)
     {
         using var ws = new ClientWebSocket();
-        var endpoint = BuildWebSocketUri(serverBaseUri, deviceId, token);
+        if (string.IsNullOrWhiteSpace(token))
+            throw new InvalidOperationException("Device token is required.");
+
+        ws.Options.SetRequestHeader("Authorization", $"Bearer {token}");
+        var endpoint = BuildWebSocketUri(serverBaseUri, deviceId);
 
         Console.Error.WriteLine($"Connecting to {endpoint.GetLeftPart(UriPartial.Path)} as device '{deviceId}'...");
         await ws.ConnectAsync(endpoint, cancellationToken);
@@ -175,7 +179,7 @@ public sealed class RemoteAgent
         }
     }
 
-    private static Uri BuildWebSocketUri(Uri baseUri, string deviceId, string? token)
+    private static Uri BuildWebSocketUri(Uri baseUri, string deviceId)
     {
         var builder = new UriBuilder(baseUri)
         {
@@ -188,8 +192,7 @@ public sealed class RemoteAgent
                 _ => throw new ArgumentException("Server URL must use http, https, ws, or wss.")
             },
             Path = "/agent",
-            Query = $"deviceId={Uri.EscapeDataString(deviceId)}" +
-                    (string.IsNullOrWhiteSpace(token) ? string.Empty : $"&token={Uri.EscapeDataString(token)}")
+            Query = $"deviceId={Uri.EscapeDataString(deviceId)}"
         };
 
         return builder.Uri;
