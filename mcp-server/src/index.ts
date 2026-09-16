@@ -106,13 +106,14 @@ function createAnkiMcpServer(): McpServer {
     "revoke_anki_device",
     {
       title: "Revoke paired Anki device",
-      description: "Permanently revoke a paired Anki Desktop Companion from the authenticated account. Its existing device token will no longer authenticate new connections.",
+      description: "Permanently revoke a paired Anki Desktop Companion from the authenticated account. Its existing connection is closed and its device token becomes invalid.",
       inputSchema: z.object({ deviceId: z.string().uuid() }),
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
     async ({ deviceId }) => {
       const removed = await registry.removeDevice(getCurrentAccountId(), deviceId);
       if (!removed) throw new Error("The specified device is not paired to this account.");
+      hub.disconnect(deviceId, "Device access revoked");
       return textResult({ revoked: true, deviceId });
     },
   );
