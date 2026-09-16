@@ -3,6 +3,8 @@ import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 import * as z from "zod/v4";
 import { DeviceHub } from "./DeviceHub.js";
+import { DeviceCredentialStore } from "./DeviceCredentialStore.js";
+import { PairingStore } from "./PairingStore.js";
 
 const cardSchema = z.object({
   front: z.string().min(1).describe("Portuguese text placed in the Anki Front field"),
@@ -27,11 +29,46 @@ function textResult(value: unknown) {
   };
 }
 
-function createAnkiMcpServer(hub: DeviceHub, deviceId: string): McpServer {
+const credentials = new DeviceCredentialStore();
+const pairing = new PairingStore();
+let activeDeviceId: string | null = null;
+
+const hub = new DeviceHub((deviceId, token) => credentials.validate(deviceId, token));
+
+function requireActiveDeviceId(): string {
+  if (!activeDeviceId) throw new Error("No Anki Desktop Companion is paired yet.");
+  return activeDeviceId;
+}
+
+function createAnkiMcpServer(): McpServer {
   const server = new McpServer({
     name: "anki-vocabulary-importer",
-    version: "0.1.0",
+    version: "0.2.0",
   });
+
+  server.registerTool(
+    "claim_anki_pairing",
+    {
+      title: "Pair Anki Desktop Companion",
+      description: "Claim a short pairing code displayed by the Anki Desktop Companion. Use this once during setup.",
+      inputSchema: z.object({ pairingCode: z.string().min(4).max(16) }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async ({ pairingCode }) => {
+      const session = pairing.claim(pairingCode);
+      if (!session?.deviceId || !session.deviceToken) {
+        throw new Error("Pairing code is invalid, expired, or already used.");
+      }
+
+      credentials.register(session.deviceId, session.deviceToken);
+      activeDeviceId = session.deviceId;
+
+      return textResult({
+        paired: true,
+        deviceId: session.deviceId,
+      });
+    },
+  );
 
   server.registerTool(
     "anki_health",
@@ -42,6 +79,7 @@ function createAnkiMcpServer(hub: DeviceHub, deviceId: string): McpServer {
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
+      const deviceId = requireActiveDeviceId();
       if (!hub.isOnline(deviceId)) return textResult({ ok: false, deviceOnline: false });
       return textResult(await hub.call(deviceId, "health"));
     },
@@ -55,7 +93,7 @@ function createAnkiMcpServer(hub: DeviceHub, deviceId: string): McpServer {
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
-    async () => textResult(await hub.call(deviceId, "list-decks")),
+    async () => textResult(await hub.call(requireActiveDeviceId(), "list-decks")),
   );
 
   server.registerTool(
@@ -66,7 +104,7 @@ function createAnkiMcpServer(hub: DeviceHub, deviceId: string): McpServer {
       inputSchema: importSchema,
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
-    async input => textResult(await hub.call(deviceId, "find-duplicates", input)),
+    async input => textResult(await hub.call(requireActiveDeviceId(), "find-duplicates", input)),
   );
 
   server.registerTool(
@@ -77,17 +115,13 @@ function createAnkiMcpServer(hub: DeviceHub, deviceId: string): McpServer {
       inputSchema: importSchema,
       annotations: { readOnlyHint: false, destructiveHint: false },
     },
-    async input => textResult(await hub.call(deviceId, "add-cards", input)),
+    async input => textResult(await hub.call(requireActiveDeviceId(), "add-cards", input)),
   );
 
   return server;
 }
 
-const deviceId = process.env.ANKI_DEVICE_ID ?? "development-device";
-const agentToken = process.env.ANKI_AGENT_TOKEN;
-const hub = new DeviceHub(agentToken);
-
-const mcpHandler = createMcpHandler(() => createAnkiMcpServer(hub, deviceId));
+const mcpHandler = createMcpHandler(() => createAnkiMcpServer());
 const nodeMcpHandler = toNodeHandler(mcpHandler, {
   onerror(error) {
     console.error("MCP adapter error", error);
@@ -101,7 +135,62 @@ const httpServer = createHttpServer(async (req, res) => {
 
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: true, deviceId, deviceOnline: hub.isOnline(deviceId) }));
+    res.end(JSON.stringify({
+      ok: true,
+      activeDeviceId,
+      deviceOnline: activeDeviceId ? hub.isOnline(activeDeviceId) : false,
+    }));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/pair/start") {
+    const session = pairing.create();
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({
+      pairingId: session.pairingId,
+      pairingCode: session.pairingCode,
+      expiresAt: new Date(session.expiresAt).toISOString(),
+    }));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/pair/status") {
+    const pairingId = url.searchParams.get("pairingId")?.trim();
+    if (!pairingId) {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "pairing_id_required" }));
+      return;
+    }
+
+    const session = pairing.status(pairingId);
+    if (!session) {
+      res.writeHead(404, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "pairing_not_found_or_expired" }));
+      return;
+    }
+
+    if (!session.claimed) {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ paired: false }));
+      return;
+    }
+
+    const creds = pairing.consumeCredentials(pairingId);
+    if (!creds) {
+      res.writeHead(409, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "pairing_credentials_unavailable" }));
+      return;
+    }
+
+    credentials.register(creds.deviceId, creds.deviceToken);
+    activeDeviceId = creds.deviceId;
+
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({
+      paired: true,
+      deviceId: creds.deviceId,
+      deviceToken: creds.deviceToken,
+    }));
     return;
   }
 
@@ -120,6 +209,6 @@ httpServer.on("upgrade", (req, socket, head) => {
 
 httpServer.listen(port, () => {
   console.error(`Anki Importer MCP server listening on port ${port}`);
-  console.error(`MCP endpoint: /mcp`);
-  console.error(`Desktop Companion WebSocket endpoint: /agent?deviceId=${encodeURIComponent(deviceId)}`);
+  console.error("MCP endpoint: /mcp");
+  console.error("Desktop Companion pairing endpoint: /pair/start");
 });
