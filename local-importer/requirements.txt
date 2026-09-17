@@ -1,2 +1,4 @@
 pyinstaller==6.16.0
 gTTS>=2.5,<3
+cairosvg>=2.7,<3
+pillow>=11,<12
