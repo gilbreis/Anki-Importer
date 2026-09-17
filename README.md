@@ -11,51 +11,51 @@ Importador local e gratuito de vocabulário do ChatGPT para o Anki Desktop.
   </a>
 </p>
 
-> **Aviso do Windows SmartScreen**
->
-> O instalador ainda não possui certificado comercial de assinatura de código e pode aparecer como **Unknown publisher**. Nesse caso o Windows pode exibir **Windows protected your PC**.
->
-> Esse aviso, por si só, **não significa que o Windows detectou vírus**; significa que o executável ainda não tem um publicador reconhecido pelo SmartScreen.
->
-> Se você baixou o arquivo pelo botão oficial acima, clique em **More info / Mais informações** e depois em **Run anyway / Executar mesmo assim**.
->
-> Para detalhes, consulte o [Guia de Instalação](docs/GUIA-USUARIO.md).
+> **Windows SmartScreen:** o instalador ainda pode aparecer como **Unknown publisher** por não possuir certificado comercial de assinatura. Isso, por si só, não significa detecção de vírus. Consulte o guia para o passo a passo.
 
-## Como funciona
+## Arquitetura
 
 ```text
-TXT + nome do deck
-       ↓
+TXT + deck
+   ↓
 ChatGPT gera .ankiimport
-       ↓
-duplo clique no arquivo
-       ↓
+   ↓
 Anki Importer local
-       ↓
+   ↓
 AnkiConnect
-       ↓
+   ↓
+Anki Importer AwesomeTTS Bridge
+   ↓
+AwesomeTTS
+   ↓
+Google Translate / en-US / speed 1.0
+   ↓
 Anki Desktop
 ```
 
-Não há servidor, login adicional, conta, token, mensalidade ou processo permanente em segundo plano.
+Não há servidor, login, token, mensalidade ou processo permanente em segundo plano.
 
-## Para o usuário final
+## Requisitos
 
-Leia o passo a passo em [docs/GUIA-USUARIO.md](docs/GUIA-USUARIO.md).
+- Anki Desktop
+- AnkiConnect — código `2055492159`
+- AwesomeTTS — código `1436550454`
+- `AnkiImporterSetup.exe`
 
-O AnkiConnect é obrigatório:
+O Setup instala automaticamente o **Anki Importer AwesomeTTS Bridge** na pasta de add-ons do Anki. Depois da instalação, reinicie o Anki.
 
-- Página: https://ankiweb.net/shared/info/2055492159
-- Código: `2055492159`
+## Regras
 
-Resumo:
-
-1. Instale o Anki Desktop.
-2. Instale o AnkiConnect no Anki e reinicie o Anki.
-3. Instale `AnkiImporterSetup.exe` uma vez.
-4. No ChatGPT, envie o TXT e informe o nome do deck.
-5. Baixe o `.ankiimport` gerado e dê duplo clique.
-6. O importador verifica duplicados, gera o áudio em inglês, adiciona apenas cartões novos, mostra o relatório e fecha.
+- Português → `Front`
+- Inglês → `Back`
+- Áudio → gerado pelo próprio AwesomeTTS
+- Serviço → Google Translate
+- Voz → English, American (`en-US`)
+- Velocidade → `1.0`
+- Se o cartão não existe → cria + áudio
+- Se já existe com áudio → ignora
+- Se já existe sem áudio → adiciona apenas o áudio ao `Back`
+- Nunca cria cartão duplicado dentro do mesmo deck
 
 ## Formato `.ankiimport`
 
@@ -66,7 +66,6 @@ Resumo:
   "frontField": "Front",
   "backField": "Back",
   "tts": true,
-  "ttsLanguage": "en",
   "cards": [
     { "front": "montar", "back": "assemble" },
     { "front": "dividir", "back": "split" }
@@ -74,45 +73,20 @@ Resumo:
 }
 ```
 
-O deck pode ter qualquer nome. Se não existir, o importador cria automaticamente.
+O deck pode ter qualquer nome. Se não existir, é criado automaticamente.
 
-`tts` é opcional e assume `true` por padrão. O idioma padrão do áudio é inglês (`en`).
-
-## Como o cartão fica
+## Estrutura
 
 ```text
-Front: montar
-Back: assemble + áudio TTS em inglês
-```
-
-O áudio é gerado com gTTS, salvo na mídia do Anki via AnkiConnect e referenciado no campo `Back` como `[sound:arquivo.mp3]`.
-
-A geração do TTS requer internet no momento da importação, mas não exige chave de API nem serviço pago. Se o áudio falhar, o cartão textual continua sendo criado.
-
-## Regras
-
-- Português → `Front`
-- Inglês → `Back`
-- TTS em inglês → `Back`
-- Modelo padrão → `Basic`
-- Duplicados no arquivo são ignorados
-- Duplicados já existentes no deck são ignorados
-- Cartões existentes não são alterados ou apagados
-- UTF-8 e acentos são preservados
-
-## Estrutura do repositório
-
-```text
-local-importer/             aplicativo local em Python
+local-importer/             aplicativo Windows em Python
+anki-addon/                 bridge entre AnkiConnect e AwesomeTTS
 installer/                  instalador Windows e associação .ankiimport
 docs/GUIA-USUARIO.md        manual do usuário final
-.github/workflows/          build e release do Setup.exe
+.github/workflows/          build e release
 ```
 
 ## Build
 
-O GitHub Actions gera o instalador gratuitamente:
-
 ```text
-Python + gTTS → PyInstaller → AnkiImporter.exe → Inno Setup → AnkiImporterSetup.exe
+Python → PyInstaller → AnkiImporter.exe → Inno Setup → AnkiImporterSetup.exe
 ```
