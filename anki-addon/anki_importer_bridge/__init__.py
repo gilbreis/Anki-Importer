@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import traceback
 
@@ -8,7 +9,7 @@ ANKICONNECT_ID = "2055492159"
 AWESOMETTS_ID = "1436550454"
 ACTION_NAME = "awesomeTtsGenerate"
 INFO_ACTION = "awesomeTtsBridgeInfo"
-BRIDGE_VERSION = "0.3.1"
+BRIDGE_VERSION = "0.3.2"
 _last_register_error = None
 
 
@@ -112,12 +113,30 @@ def _bridge_info():
     }
 
 
+def _write_status(ok, detail=None):
+    try:
+        path = os.path.join(os.path.dirname(__file__), "bridge-status.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({
+                "ok": bool(ok),
+                "bridgeVersion": BRIDGE_VERSION,
+                "detail": detail,
+            }, handle, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
 def _register_bridge():
     global _last_register_error
     try:
         ankiconnect = _load_addon(ANKICONNECT_ID)
         api = ankiconnect.util.api
-        cls = ankiconnect.AnkiConnect
+
+        # Sempre usa a classe da instância real que está atendendo em 127.0.0.1:8765.
+        live_instance = getattr(ankiconnect, "ac", None)
+        cls = type(live_instance) if live_instance is not None else getattr(ankiconnect, "AnkiConnect", None)
+        if cls is None:
+            raise RuntimeError("Classe AnkiConnect não encontrada no add-on 2055492159.")
 
         if not hasattr(cls, INFO_ACTION):
             @api()
@@ -131,10 +150,23 @@ def _register_bridge():
                 return _generate_with_awesometts(text, noteId, fieldName, voice, speed)
             setattr(cls, ACTION_NAME, awesomeTtsGenerate)
 
+        # Valida contra o mesmo mecanismo que o AnkiConnect usa para refletir ações.
+        if live_instance is not None and hasattr(live_instance, "apiReflect"):
+            reflected = live_instance.apiReflect(
+                scopes=["actions"],
+                actions=[INFO_ACTION, ACTION_NAME],
+            ) or {}
+            exposed = set(reflected.get("actions") or [])
+            missing = [name for name in (INFO_ACTION, ACTION_NAME) if name not in exposed]
+            if missing:
+                raise RuntimeError("Ações não expostas pelo AnkiConnect após registro: " + ", ".join(missing))
+
         _last_register_error = None
+        _write_status(True, "bridge registrado no AnkiConnect")
         return True
     except Exception as exc:
-        _last_register_error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=2)}"
+        _last_register_error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=4)}"
+        _write_status(False, _last_register_error)
         return False
 
 
