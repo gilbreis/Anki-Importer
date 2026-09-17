@@ -5,7 +5,7 @@ import cairosvg
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-svg = ROOT / "assets" / "anki-favicon.svg"
+svg = ROOT / "assets" / "anki-importer.svg"
 out = ROOT / "artifacts" / "anki-importer.ico"
 out.parent.mkdir(parents=True, exist_ok=True)
 
