@@ -1,6 +1,6 @@
 # Guia do Usuário — Anki Importer
 
-O Anki Importer adiciona palavras do ChatGPT ao Anki Desktop com poucos passos e sem configuração técnica.
+O Anki Importer adiciona vocabulário do ChatGPT ao Anki Desktop e usa o próprio AwesomeTTS do Anki para gerar a pronúncia.
 
 ## 1. Preparação — apenas na primeira vez
 
@@ -10,162 +10,80 @@ Tenha o **Anki Desktop** instalado no Windows.
 
 ### 1.2 Instale o AnkiConnect — obrigatório
 
-O Anki Importer usa o **AnkiConnect** para conversar com o Anki Desktop. Sem esse complemento, a importação não funciona.
+1. Abra **Ferramentas → Complementos → Obter Complementos**.
+2. Informe o código:
 
-Página oficial do complemento:
+```text
+2055492159
+```
 
+Página oficial:
 https://ankiweb.net/shared/info/2055492159
 
-Código do complemento:
+3. Confirme e reinicie o Anki.
+
+### 1.3 Instale o AwesomeTTS — obrigatório para o áudio
+
+1. Abra **Ferramentas → Complementos → Obter Complementos**.
+2. Informe o código:
 
 ```text
-2055492159
+1436550454
 ```
 
-#### Passo a passo
+Página oficial:
+https://ankiweb.net/shared/info/1436550454
 
-1. Abra o **Anki Desktop**.
-2. No menu superior, clique em **Ferramentas**.
-3. Clique em **Complementos / Add-ons**.
-4. Na janela de complementos, clique em **Obter Complementos / Get Add-ons**.
-5. No campo exibido, digite exatamente:
+3. Confirme e reinicie o Anki.
+
+O Anki Importer usa automaticamente esta configuração do AwesomeTTS:
 
 ```text
-2055492159
+Serviço: Google Translate
+Voz: English, American (en-US)
+Velocidade: 1.0
 ```
 
-6. Clique em **OK** para instalar.
-7. Aguarde a confirmação da instalação.
-8. Feche completamente o Anki Desktop.
-9. Abra o Anki Desktop novamente.
+Não é necessário abrir a janela **Add TTS Audio to Note** nem clicar em **Record** durante uma importação.
 
-Pronto. O AnkiConnect fica instalado e o Anki Importer poderá acessar o Anki localmente.
+### 1.4 Instale o Anki Importer
 
-> Importante: o Anki Desktop precisa estar aberto quando você importar um arquivo `.ankiimport`.
+1. Baixe `AnkiImporterSetup.exe` pelo botão **Baixar Anki Importer** do repositório.
+2. Execute o instalador.
+3. Se o Windows mostrar **Windows protected your PC**, use **More info / Mais informações → Run anyway / Executar mesmo assim**. O aviso ocorre porque o instalador ainda não possui certificado comercial de assinatura; por si só, isso não significa uma detecção de vírus.
+4. Clique em **Next → Install → Finish**.
+5. **Feche completamente o Anki e abra novamente.**
 
-### 1.3 Instale o Anki Importer
-
-1. Baixe `AnkiImporterSetup.exe` pelo botão **Baixar Anki Importer** na página principal do projeto.
-2. Dê duplo clique no instalador.
-
-#### Aviso do Windows SmartScreen
-
-Na primeira instalação, o Windows pode mostrar a mensagem:
-
-```text
-Windows protected your PC
-Microsoft Defender SmartScreen prevented an unrecognized app from starting.
-Publisher: Unknown publisher
-```
-
-Isso acontece porque o `AnkiImporterSetup.exe` ainda **não possui um certificado comercial de assinatura de código**. Por esse motivo, o Windows não consegue mostrar um publicador verificado e trata o instalador como um aplicativo ainda sem reputação conhecida.
-
-**Esse aviso, por si só, não significa que o Windows encontrou vírus ou malware no Anki Importer.** Ele informa que o executável não está assinado por um publicador reconhecido pelo SmartScreen.
-
-O projeto é aberto e o código-fonte utilizado para gerar o instalador está disponível neste próprio repositório GitHub.
-
-Se você baixou o arquivo pelo botão oficial deste repositório, prossiga assim:
-
-1. Na janela **Windows protected your PC**, clique em **More info / Mais informações**.
-2. Confira que o aplicativo exibido é `AnkiImporterSetup.exe`.
-3. Clique em **Run anyway / Executar mesmo assim**.
-4. O instalador do Anki Importer será aberto normalmente.
-
-> Evite executar cópias do instalador recebidas por e-mail, mensagens ou sites de terceiros. Prefira sempre o botão de download deste repositório.
-
-#### Continue a instalação
-
-1. Clique em **Next / Avançar**.
-2. Clique em **Install / Instalar**.
-3. Clique em **Finish / Concluir**.
-
-Essa instalação é feita uma única vez. Você não precisa instalar Python.
+O Setup instala automaticamente um pequeno complemento local chamado **Anki Importer AwesomeTTS Bridge**. Esse bridge permite que o programa chame o AwesomeTTS sem abrir janelas manuais.
 
 ---
 
 ## 2. Uso no dia a dia
 
-### Passo 1 — Abra o Anki
-
-Abra o **Anki Desktop** e deixe-o aberto.
-
-### Passo 2 — Envie o TXT ao ChatGPT
-
-Anexe o TXT recebido do professor e informe o deck desejado.
-
-Exemplo:
+1. Abra o **Anki Desktop** e deixe-o aberto.
+2. No ChatGPT, anexe o TXT e informe o deck, por exemplo:
 
 ```text
 Deck "English"
 ```
 
-O nome do deck pode ser qualquer um, por exemplo:
+3. Baixe o `.ankiimport` gerado.
+4. Dê duplo clique no arquivo.
+5. Aguarde o relatório final.
 
-```text
-Deck "Business English"
-Deck "Aula 15"
-Deck "Inglês::Vocabulário"
-```
-
-### Passo 3 — Baixe o arquivo gerado
-
-O ChatGPT devolverá um arquivo com extensão:
-
-```text
-.ankiimport
-```
-
-Exemplo:
-
-```text
-English.ankiimport
-```
-
-### Passo 4 — Dê duplo clique
-
-Abra o `.ankiimport` com duplo clique.
-
-O Anki Importer fará automaticamente:
-
-- leitura das palavras;
-- criação do deck, caso ainda não exista;
-- verificação de palavras duplicadas no próprio arquivo;
-- verificação de palavras que já existem no deck;
-- geração do áudio em inglês;
-- criação apenas dos cartões realmente novos;
-- complemento de áudio em cartões existentes que ainda não possuem áudio.
-
-### Passo 5 — Confira o resultado
-
-Ao terminar aparece uma janela semelhante a:
-
-```text
-Deck: English
-
-Encontradas: 20
-Novos cartões: 12
-Duplicadas ignoradas: 5
-Áudio adicionado em existentes: 3
-Inválidas: 0
-Áudios em novos cartões: 12
-Erros de áudio em novos: 0
-Erros de áudio em existentes: 0
-Erros: 0
-```
-
-Depois disso o Anki Importer fecha. Não existe programa que precise ficar rodando em segundo plano.
+O nome do deck pode ser qualquer um. Se ele não existir, será criado automaticamente.
 
 ---
 
-## 3. Como cada cartão é criado
+## 3. Como cada cartão fica
 
-Para uma linha recebida assim:
+Entrada:
 
 ```text
 montar = assemble
 ```
 
-o cartão será criado assim:
+Resultado:
 
 ```text
 Front:
@@ -173,158 +91,98 @@ montar
 
 Back:
 assemble
-🔊 áudio em inglês
+[sound:arquivo-gerado-pelo-AwesomeTTS.mp3]
 ```
 
-O padrão utilizado é:
-
-```text
-Modelo: Basic
-Português: Front
-Inglês: Back
-Áudio TTS em inglês: Back
-```
-
-O áudio é salvo na mídia do próprio Anki e associado ao verso do cartão.
+O áudio é gerado pelo **AwesomeTTS → Google Translate → English, American (en-US) → Speed 1.0** e salvo na mídia da própria coleção do Anki.
 
 ---
 
-## 4. Áudio TTS em inglês
+## 4. Regra de duplicados e áudio
 
-O Anki Importer usa **Google Translate TTS por meio da biblioteca gTTS** para gerar a pronúncia da palavra ou expressão em inglês.
+```text
+Não existe no deck
+→ cria o cartão
+→ AwesomeTTS adiciona o áudio ao Back
 
-Não é necessária chave de API, cadastro adicional ou serviço pago.
+Já existe e já possui [sound:...] no Back
+→ ignora
+→ não duplica
 
-Para gerar o áudio, o computador precisa estar conectado à internet no momento da importação.
+Já existe, mas não possui áudio
+→ NÃO cria outro cartão
+→ mantém o conteúdo atual
+→ AwesomeTTS adiciona somente o áudio ao Back existente
+```
 
-Se a internet estiver indisponível ou o serviço de TTS falhar:
-
-- o cartão de texto ainda é criado normalmente;
-- o campo `Back` continua contendo a tradução em inglês;
-- o relatório informa quantos áudios falharam.
-
-Isso evita perder a importação por causa de um problema temporário de áudio.
+Nenhum cartão existente é apagado.
 
 ---
 
-## 5. Duplicados e cartões já existentes
-
-O Anki Importer nunca cria um segundo cartão com o mesmo `Front` dentro do mesmo deck.
-
-A regra é:
-
-```text
-Palavra não existe no deck
-→ cria o cartão com texto + áudio
-
-Palavra já existe e já possui áudio no Back
-→ não cria outro cartão e ignora a entrada
-
-Palavra já existe, mas ainda não possui áudio no Back
-→ não cria outro cartão
-→ mantém o texto existente
-→ adiciona somente o áudio ao Back existente
-```
+## 5. Relatório
 
 Exemplo:
 
-Se o deck `English` já contém:
-
 ```text
-Front: dividir
-Back: split
+Deck: English
+
+Encontradas: 20
+Novos cartões: 12
+Duplicadas ignoradas: 5
+Áudio AwesomeTTS em existentes: 3
+Áudio AwesomeTTS em novos: 12
+Inválidas: 0
+Erros de áudio em existentes: 0
+Erros de áudio em novos: 0
+Erros: 0
 ```
-
-sem áudio, uma nova importação de:
-
-```text
-dividir = split
-```
-
-não criará outro cartão. O cartão existente será atualizado para algo equivalente a:
-
-```text
-Front: dividir
-Back: split + 🔊 áudio em inglês
-```
-
-Se o cartão já contiver um marcador de áudio `[sound:...]`, ele será considerado completo e será ignorado.
-
-Nenhum cartão existente é apagado e nenhum cartão duplicado é criado.
 
 ---
 
-## 6. Se algo não funcionar
+## 6. Se o áudio não funcionar
 
-### O Windows mostra "Windows protected your PC"
+Confira nesta ordem:
 
-Isso pode acontecer porque o instalador ainda aparece como **Unknown publisher**. Volte à seção **1.3 Instale o Anki Importer** deste guia e siga **More info / Mais informações → Run anyway / Executar mesmo assim**.
+1. O Anki está aberto.
+2. O AnkiConnect `2055492159` está instalado.
+3. O AwesomeTTS `1436550454` está instalado.
+4. O Anki foi reiniciado depois da instalação ou atualização do Anki Importer.
+5. O computador possui internet para o Google Translate gerar o áudio.
 
-Esse aviso não é, sozinho, uma detecção de vírus. Baixe sempre o instalador diretamente deste repositório.
-
-### Mensagem: não foi possível acessar o Anki
-
-Confira:
-
-1. O **Anki Desktop está aberto**.
-2. O **AnkiConnect está instalado**.
-3. Você reiniciou o Anki depois de instalar o AnkiConnect.
-
-Se tiver dúvida sobre o AnkiConnect, abra:
-
-https://ankiweb.net/shared/info/2055492159
-
-Código:
-
-```text
-2055492159
-```
-
-Depois dê duplo clique novamente no `.ankiimport`.
-
-### O áudio não foi criado
-
-Confira se o computador está conectado à internet. O cartão textual pode ser importado mesmo sem o áudio.
-
-### O Windows não abre o `.ankiimport`
-
-Execute novamente `AnkiImporterSetup.exe`. O instalador registra automaticamente esse tipo de arquivo no Windows.
+Se aparecer a mensagem **Integração AwesomeTTS não está disponível**, reinstale `AnkiImporterSetup.exe` e reinicie o Anki.
 
 ---
 
-## Resumo
-
-### Primeira vez
+## Resumo da primeira instalação
 
 ```text
 Instalar Anki
    ↓
 Instalar AnkiConnect (2055492159)
    ↓
+Instalar AwesomeTTS (1436550454)
+   ↓
 Reiniciar Anki
    ↓
-Baixar AnkiImporterSetup.exe do GitHub
+Instalar AnkiImporterSetup.exe
    ↓
-Se aparecer SmartScreen:
-More info → Run anyway
+Reiniciar Anki novamente
    ↓
-Instalar Anki Importer
+Pronto
 ```
 
-### Uso normal
+## Uso normal
 
 ```text
 Abrir Anki
    ↓
-Enviar TXT + nome do deck ao ChatGPT
+Enviar TXT + Deck ao ChatGPT
    ↓
 Baixar .ankiimport
    ↓
-Dar duplo clique
+Duplo clique
    ↓
-Novos cartões são criados
-Cartões existentes sem áudio recebem o áudio
-Duplicados completos são ignorados
+Texto + áudio AwesomeTTS
    ↓
 Pronto
 ```
