@@ -1,5 +1,5 @@
 #define MyAppName "Anki Importer"
-#define MyAppVersion "0.3.1"
+#define MyAppVersion "0.3.2"
 #define MyAppPublisher "Anki Importer"
 #define MyAppExeName "AnkiImporter.exe"
 
