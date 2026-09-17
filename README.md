@@ -6,6 +6,9 @@ Importador local e gratuito de vocabulário do ChatGPT para o Anki Desktop.
   <a href="https://github.com/gilbreis/Anki-Importer/releases/download/latest/AnkiImporterSetup.exe">
     <img alt="Baixar Anki Importer" src="https://img.shields.io/badge/Baixar-AnkiImporterSetup.exe-2ea44f?style=for-the-badge&logo=windows">
   </a>
+  <a href="https://github.com/gilbreis/Anki-Importer/releases/download/latest/anki-importer-skill.zip">
+    <img alt="Baixar Skill do ChatGPT" src="https://img.shields.io/badge/Baixar-Skill%20ChatGPT-6f42c1?style=for-the-badge&logo=openai">
+  </a>
   <a href="docs/GUIA-USUARIO.md">
     <img alt="Guia de Instalação" src="https://img.shields.io/badge/Guia-Instalação-0969da?style=for-the-badge&logo=readthedocs">
   </a>
@@ -13,10 +16,28 @@ Importador local e gratuito de vocabulário do ChatGPT para o Anki Desktop.
 
 > **Windows SmartScreen:** o instalador ainda pode aparecer como **Unknown publisher** por não possuir certificado comercial de assinatura. Isso, por si só, não significa detecção de vírus. Consulte o guia para o passo a passo.
 
+## Uso no ChatGPT
+
+Com a Skill **Anki Importer** instalada, em um novo chat basta:
+
+```text
+1. Anexar o TXT
+2. Escrever:
+   Deck "English"
+```
+
+A Skill reconhece automaticamente as linhas `português = inglês`, remove duplicatas dentro do próprio TXT e gera o `.ankiimport` pronto para abrir no Windows.
+
+Veja: [Como instalar a Skill no ChatGPT](docs/INSTALAR-SKILL-CHATGPT.md).
+
+> A disponibilidade de Skills depende do plano e das configurações da conta/workspace do ChatGPT. Atualmente, a documentação oficial da OpenAI lista Skills para usuários elegíveis de Business, Enterprise, Healthcare e Edu.
+
 ## Arquitetura
 
 ```text
 TXT + deck
+   ↓
+Skill Anki Importer no ChatGPT
    ↓
 ChatGPT gera .ankiimport
    ↓
@@ -80,6 +101,7 @@ O deck pode ter qualquer nome. Se não existir, é criado automaticamente.
 ```text
 local-importer/             aplicativo Windows em Python
 anki-addon/                 bridge entre AnkiConnect e AwesomeTTS
+chatgpt-skill/              Skill para gerar .ankiimport no ChatGPT
 installer/                  instalador Windows e associação .ankiimport
 docs/GUIA-USUARIO.md        manual do usuário final
 .github/workflows/          build e release
