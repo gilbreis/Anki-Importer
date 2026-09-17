@@ -1,5 +1,6 @@
 import importlib
 import os
+import traceback
 
 from aqt import gui_hooks, mw
 
@@ -7,26 +8,30 @@ ANKICONNECT_ID = "2055492159"
 AWESOMETTS_ID = "1436550454"
 ACTION_NAME = "awesomeTtsGenerate"
 INFO_ACTION = "awesomeTtsBridgeInfo"
+BRIDGE_VERSION = "0.3.1"
+_last_register_error = None
 
 
 def _load_addon(addon_id):
     try:
         return importlib.import_module(addon_id)
     except Exception as exc:
-        raise RuntimeError(f"Add-on obrigatório não encontrado: {addon_id}") from exc
+        raise RuntimeError(f"Add-on obrigatório não encontrado ou não carregado: {addon_id}: {exc}") from exc
 
 
 def _awesome_module():
     module = _load_addon(AWESOMETTS_ID)
     addon = getattr(module, "awesometts", None)
-    if addon is None or not hasattr(addon, "router"):
-        raise RuntimeError("AwesomeTTS não está carregado corretamente.")
+    if addon is None:
+        raise RuntimeError("Módulo interno 'awesometts' não encontrado no AwesomeTTS.")
+    if not hasattr(addon, "router"):
+        raise RuntimeError("AwesomeTTS carregado, mas o router interno não está disponível.")
     return addon
 
 
 def _copy_audio_to_collection(path):
     if not path or not os.path.exists(path):
-        raise RuntimeError("AwesomeTTS não retornou um arquivo de áudio válido.")
+        raise RuntimeError(f"AwesomeTTS não retornou um arquivo de áudio válido: {path!r}")
     return mw.col.media.add_file(path)
 
 
@@ -53,7 +58,7 @@ def _generate_with_awesometts(text, note_id, field_name="Back", voice="en-US", s
         state["path"] = path
 
     def fail(exception, _text):
-        state["error"] = str(exception)
+        state["error"] = f"{type(exception).__name__}: {exception}"
 
     addon.router(
         svc_id="google",
@@ -64,16 +69,51 @@ def _generate_with_awesometts(text, note_id, field_name="Back", voice="en-US", s
     )
 
     if state["error"]:
-        raise RuntimeError(state["error"])
+        raise RuntimeError(f"AwesomeTTS/Google Translate falhou: {state['error']}")
     if not state["path"]:
-        raise RuntimeError("AwesomeTTS não gerou o áudio.")
+        raise RuntimeError("AwesomeTTS não gerou o áudio e não retornou erro detalhado.")
 
     filename = _copy_audio_to_collection(state["path"])
     sound_tag = _append_sound(note_id, field_name, filename)
-    return {"ok": True, "filename": filename, "soundTag": sound_tag}
+    return {
+        "ok": True,
+        "filename": filename,
+        "soundTag": sound_tag,
+        "service": "google",
+        "voice": voice,
+        "speed": float(speed),
+    }
+
+
+def _bridge_info():
+    awesome_ready = False
+    awesome_error = None
+    try:
+        addon = _awesome_module()
+        awesome_ready = True
+        services = dict(addon.router.get_services()) if hasattr(addon.router, "get_services") else {}
+        google_available = "google" in services or any(name == "Google Translate" for name in services.values())
+    except Exception as exc:
+        google_available = False
+        awesome_error = f"{type(exc).__name__}: {exc}"
+
+    return {
+        "bridge": True,
+        "bridgeVersion": BRIDGE_VERSION,
+        "registered": _last_register_error is None,
+        "registerError": _last_register_error,
+        "awesomeTts": awesome_ready,
+        "awesomeTtsError": awesome_error,
+        "googleServiceAvailable": google_available,
+        "serviceId": "google",
+        "serviceName": "Google Translate",
+        "voice": "en-US",
+        "speed": 1.0,
+    }
 
 
 def _register_bridge():
+    global _last_register_error
     try:
         ankiconnect = _load_addon(ANKICONNECT_ID)
         api = ankiconnect.util.api
@@ -82,30 +122,25 @@ def _register_bridge():
         if not hasattr(cls, INFO_ACTION):
             @api()
             def awesomeTtsBridgeInfo(self):
-                try:
-                    _awesome_module()
-                    awesome_ready = True
-                except Exception:
-                    awesome_ready = False
-                return {
-                    "bridge": True,
-                    "awesomeTts": awesome_ready,
-                    "service": "Google Translate",
-                    "voice": "en-US",
-                    "speed": 1.0,
-                }
-
+                return _bridge_info()
             setattr(cls, INFO_ACTION, awesomeTtsBridgeInfo)
 
         if not hasattr(cls, ACTION_NAME):
             @api()
             def awesomeTtsGenerate(self, text, noteId, fieldName="Back", voice="en-US", speed=1.0):
                 return _generate_with_awesometts(text, noteId, fieldName, voice, speed)
-
             setattr(cls, ACTION_NAME, awesomeTtsGenerate)
 
-    except Exception:
-        pass
+        _last_register_error = None
+        return True
+    except Exception as exc:
+        _last_register_error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=2)}"
+        return False
 
 
+# Registra imediatamente quando o add-on é carregado.
+_register_bridge()
+
+# Tenta novamente após o perfil abrir, caso a ordem de carga dos add-ons
+# tenha feito o AnkiConnect ainda não estar disponível na primeira tentativa.
 gui_hooks.profile_did_open.append(_register_bridge)
