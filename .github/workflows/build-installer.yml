@@ -6,12 +6,14 @@ on:
     paths:
       - "installer/**"
       - "local-importer/**"
+      - "anki-addon/**"
       - "assets/**"
       - ".github/workflows/build-installer.yml"
   pull_request:
     paths:
       - "installer/**"
       - "local-importer/**"
+      - "anki-addon/**"
       - "assets/**"
       - ".github/workflows/build-installer.yml"
   workflow_dispatch:
