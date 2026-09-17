@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 
 ANKI_URL = "http://127.0.0.1:8765"
 APP_TITLE = "Anki Importer"
-APP_VERSION = "0.3.1"
+APP_VERSION = "0.3.2"
 VERSION_URL = "https://raw.githubusercontent.com/gilbreis/Anki-Importer/main/local-importer/version.txt"
 DOWNLOAD_URL = "https://github.com/gilbreis/Anki-Importer/releases/download/latest/AnkiImporterSetup.exe"
 SOUND_RE = re.compile(r"\[sound:[^\]]+\]", re.IGNORECASE)
@@ -84,7 +84,7 @@ def ensure_awesometts_ready():
             "Verifique:\n"
             "1. AnkiConnect 2055492159 instalado e ativo.\n"
             "2. AwesomeTTS 1436550454 instalado e ativo.\n"
-            "3. Anki Importer 0.3.1 instalado.\n"
+            "3. Anki Importer 0.3.2 instalado.\n"
             "4. Feche completamente o Anki e abra novamente.\n\n"
             f"Detalhe técnico: {exc}"
         ) from exc
