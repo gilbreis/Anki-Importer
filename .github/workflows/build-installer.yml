@@ -6,11 +6,13 @@ on:
     paths:
       - "installer/**"
       - "local-importer/**"
+      - "assets/**"
       - ".github/workflows/build-installer.yml"
   pull_request:
     paths:
       - "installer/**"
       - "local-importer/**"
+      - "assets/**"
       - ".github/workflows/build-installer.yml"
   workflow_dispatch:
 
@@ -27,9 +29,13 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install PyInstaller
+      - name: Install dependencies
         shell: pwsh
         run: pip install -r local-importer/requirements.txt
+
+      - name: Build application icon
+        shell: pwsh
+        run: python local-importer/build_icon.py
 
       - name: Build local importer EXE
         shell: pwsh
@@ -39,6 +45,7 @@ jobs:
             --onefile `
             --windowed `
             --name AnkiImporter `
+            --icon artifacts/anki-importer.ico `
             --distpath artifacts/local-importer `
             --workpath artifacts/pyinstaller-work `
             --specpath artifacts `
