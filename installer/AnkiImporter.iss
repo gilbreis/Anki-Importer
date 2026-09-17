@@ -7,6 +7,10 @@
   #define ImporterSource "..\artifacts\local-importer\AnkiImporter.exe"
 #endif
 
+#ifndef IconSource
+  #define IconSource "..\artifacts\anki-importer.ico"
+#endif
+
 [Setup]
 AppId={{8CBE6016-617C-4FBA-BB5E-B7AFEF4BAA8D}
 AppName={#MyAppName}
@@ -18,6 +22,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=output
 OutputBaseFilename=AnkiImporterSetup
+SetupIconFile={#IconSource}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
