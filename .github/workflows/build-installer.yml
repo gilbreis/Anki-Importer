@@ -43,15 +43,19 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifacts/local-importer | Out-Null
+          $icon = (Resolve-Path "artifacts/anki-importer.ico").Path
+
           pyinstaller `
             --onefile `
             --windowed `
             --name AnkiImporter `
-            --icon artifacts/anki-importer.ico `
+            --icon "$icon" `
             --distpath artifacts/local-importer `
             --workpath artifacts/pyinstaller-work `
             --specpath artifacts `
             local-importer/app.py
+
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           if (-not (Test-Path "artifacts/local-importer/AnkiImporter.exe")) {
             throw "AnkiImporter.exe was not generated."
@@ -82,6 +86,7 @@ jobs:
 
           & $iscc `
             "/DImporterSource=$((Resolve-Path 'artifacts/local-importer/AnkiImporter.exe').Path)" `
+            "/DIconSource=$((Resolve-Path 'artifacts/anki-importer.ico').Path)" `
             "installer/AnkiImporter.iss"
 
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
