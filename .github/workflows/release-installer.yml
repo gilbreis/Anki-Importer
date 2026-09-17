@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-installer-main
+  cancel-in-progress: true
+
 jobs:
   release:
     runs-on: windows-latest
@@ -87,17 +91,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $asset = "artifacts/release/AnkiImporterSetup.exe"
-          if (gh release view latest --repo "${{ github.repository }}" *> $null) {
-            gh release upload latest $asset --clobber --repo "${{ github.repository }}"
+          $repo = "${{ github.repository }}"
+
+          gh api "repos/$repo/releases/tags/latest" --silent 2>$null
+          $releaseExists = ($LASTEXITCODE -eq 0)
+
+          if ($releaseExists) {
+            gh release upload latest $asset --clobber --repo $repo
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
             gh release edit latest `
-              --repo "${{ github.repository }}" `
-              --title "Anki Importer - Última versão" `
-              --notes "Instalador mais recente do Anki Importer para Windows. Esta release é atualizada automaticamente."
-          }
-          else {
-            gh release create latest $asset `
-              --repo "${{ github.repository }}" `
+              --repo $repo `
               --target main `
               --title "Anki Importer - Última versão" `
               --notes "Instalador mais recente do Anki Importer para Windows. Esta release é atualizada automaticamente."
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          else {
+            gh release create latest $asset `
+              --repo $repo `
+              --target main `
+              --title "Anki Importer - Última versão" `
+              --notes "Instalador mais recente do Anki Importer para Windows. Esta release é atualizada automaticamente."
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
