@@ -1,5 +1,5 @@
 #define MyAppName "Anki Importer"
-#define MyAppVersion "0.2.0"
+#define MyAppVersion "0.3.0"
 #define MyAppPublisher "Anki Importer"
 #define MyAppExeName "AnkiImporter.exe"
 
@@ -34,6 +34,8 @@ ChangesAssociations=yes
 
 [Files]
 Source: "{#ImporterSource}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
+Source: "..\anki-addon\anki_importer_bridge\__init__.py"; DestDir: "{userappdata}\Anki2\addons21\anki_importer_bridge"; Flags: ignoreversion
+Source: "..\anki-addon\anki_importer_bridge\manifest.json"; DestDir: "{userappdata}\Anki2\addons21\anki_importer_bridge"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Anki Importer"; Filename: "{app}\{#MyAppExeName}"
