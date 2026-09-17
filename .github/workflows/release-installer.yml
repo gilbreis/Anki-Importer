@@ -6,6 +6,7 @@ on:
     paths:
       - "local-importer/**"
       - "installer/**"
+      - "assets/**"
       - ".github/workflows/release-installer.yml"
   workflow_dispatch:
 
@@ -28,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r local-importer/requirements.txt
 
+      - name: Build application icon
+        run: python local-importer/build_icon.py
+
       - name: Build local importer EXE
         shell: pwsh
         run: |
@@ -37,6 +41,7 @@ jobs:
             --onefile `
             --windowed `
             --name AnkiImporter `
+            --icon artifacts/anki-importer.ico `
             local-importer/app.py
 
           New-Item -ItemType Directory -Force -Path artifacts/local-importer | Out-Null
@@ -67,6 +72,7 @@ jobs:
 
           & $iscc `
             "/DImporterSource=$((Resolve-Path 'artifacts/local-importer/AnkiImporter.exe').Path)" `
+            "/DIconSource=$((Resolve-Path 'artifacts/anki-importer.ico').Path)" `
             "installer/AnkiImporter.iss"
 
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
