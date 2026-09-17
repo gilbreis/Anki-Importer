@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 
 ANKI_URL = "http://127.0.0.1:8765"
 APP_TITLE = "Anki Importer"
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 VERSION_URL = "https://raw.githubusercontent.com/gilbreis/Anki-Importer/main/local-importer/version.txt"
 DOWNLOAD_URL = "https://github.com/gilbreis/Anki-Importer/releases/download/latest/AnkiImporterSetup.exe"
 SOUND_RE = re.compile(r"\[sound:[^\]]+\]", re.IGNORECASE)
@@ -48,7 +48,7 @@ def anki(action, params=None):
     except (URLError, OSError) as exc:
         raise RuntimeError("Não consegui acessar o Anki. Abra o Anki Desktop e confirme que o AnkiConnect está instalado.") from exc
     if result.get("error"):
-        raise RuntimeError(str(result["error"]))
+        raise RuntimeError(f"AnkiConnect/{action}: {result['error']}")
     return result.get("result")
 
 
@@ -80,25 +80,47 @@ def ensure_awesometts_ready():
         info = anki("awesomeTtsBridgeInfo") or {}
     except Exception as exc:
         raise RuntimeError(
-            "Integração AwesomeTTS não está disponível.\n\n"
-            "Confirme que o AnkiConnect (2055492159) e o AwesomeTTS (1436550454) estão instalados, "
-            "reinstale o Anki Importer e reinicie o Anki."
+            "O bridge do AwesomeTTS não foi carregado pelo Anki.\n\n"
+            "Verifique:\n"
+            "1. AnkiConnect 2055492159 instalado e ativo.\n"
+            "2. AwesomeTTS 1436550454 instalado e ativo.\n"
+            "3. Anki Importer 0.3.1 instalado.\n"
+            "4. Feche completamente o Anki e abra novamente.\n\n"
+            f"Detalhe técnico: {exc}"
         ) from exc
+
+    problems = []
+    if not info.get("bridge"):
+        problems.append("bridge não respondeu como ativo")
+    if not info.get("registered", True):
+        problems.append(f"falha ao registrar bridge: {info.get('registerError')}")
     if not info.get("awesomeTts"):
+        problems.append(f"AwesomeTTS não carregado: {info.get('awesomeTtsError')}")
+    if not info.get("googleServiceAvailable"):
+        problems.append("serviço interno 'google' / Google Translate não disponível no AwesomeTTS")
+
+    if problems:
         raise RuntimeError(
-            "AwesomeTTS não foi encontrado.\n\n"
-            "Instale o complemento 1436550454 no Anki e reinicie o Anki."
+            "A integração AwesomeTTS não está pronta.\n\n" +
+            "\n".join(f"- {item}" for item in problems) +
+            "\n\nConfiguração esperada: Google Translate / en-US / velocidade 1.0."
         )
+    return info
 
 
 def generate_audio(note_id, text, back_field):
-    return anki("awesomeTtsGenerate", {
+    result = anki("awesomeTtsGenerate", {
         "text": text,
         "noteId": note_id,
         "fieldName": back_field,
         "voice": "en-US",
         "speed": 1.0,
-    })
+    }) or {}
+    if not result.get("ok"):
+        raise RuntimeError(f"AwesomeTTS não confirmou a geração do áudio: {result}")
+    if not result.get("soundTag"):
+        raise RuntimeError(f"AwesomeTTS gerou resposta sem [sound:...]: {result}")
+    return result
 
 
 def existing_notes_by_front(deck, front_field, back_field):
@@ -133,8 +155,7 @@ def import_package(package):
     tts_enabled = package["tts"]
 
     anki("version")
-    if tts_enabled:
-        ensure_awesometts_ready()
+    bridge_info = ensure_awesometts_ready() if tts_enabled else None
 
     decks = set(anki("deckNames") or [])
     if deck not in decks:
@@ -167,10 +188,12 @@ def import_package(package):
         if existing_note:
             if tts_enabled and not existing_note["hasAudio"]:
                 try:
-                    generate_audio(existing_note["noteId"], back, back_field)
+                    result = generate_audio(existing_note["noteId"], back, back_field)
                     existing_audio_added += 1
-                except Exception:
-                    existing_audio_errors.append(front)
+                    existing_note["hasAudio"] = True
+                    existing_note["back"] = f'{existing_note["back"]}<br>{result["soundTag"]}'
+                except Exception as exc:
+                    existing_audio_errors.append(f"{front}: {exc}")
             else:
                 duplicates += 1
             continue
@@ -201,11 +224,12 @@ def import_package(package):
                 try:
                     generate_audio(note_id, back, back_field)
                     audio_generated += 1
-                except Exception:
-                    audio_errors.append(front)
+                except Exception as exc:
+                    audio_errors.append(f"{front}: {exc}")
 
     return {
         "deck": deck,
+        "bridgeInfo": bridge_info,
         "found": len(package["cards"]),
         "added": added,
         "duplicates": duplicates,
@@ -234,6 +258,12 @@ def main():
 
     try:
         report = import_package(load_package(path))
+        detail_lines = []
+        if report["existingAudioErrors"]:
+            detail_lines.append("\nErros de áudio em existentes:\n" + "\n".join(report["existingAudioErrors"][:5]))
+        if report["audioErrors"]:
+            detail_lines.append("\nErros de áudio em novos:\n" + "\n".join(report["audioErrors"][:5]))
+
         messagebox.showinfo(
             f"{APP_TITLE} {APP_VERSION}",
             f'Deck: {report["deck"]}\n\n'
@@ -245,7 +275,8 @@ def main():
             f'Inválidas: {report["invalid"]}\n'
             f'Erros de áudio em existentes: {len(report["existingAudioErrors"])}\n'
             f'Erros de áudio em novos: {len(report["audioErrors"])}\n'
-            f'Erros: {len(report["errors"])}',
+            f'Erros: {len(report["errors"])}'
+            + "".join(detail_lines),
         )
     except Exception as exc:
         messagebox.showerror(f"{APP_TITLE} {APP_VERSION}", str(exc))
