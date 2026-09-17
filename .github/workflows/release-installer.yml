@@ -6,6 +6,7 @@ on:
     paths:
       - "local-importer/**"
       - "installer/**"
+      - "anki-addon/**"
       - "assets/**"
       - ".github/workflows/release-installer.yml"
   workflow_dispatch:
