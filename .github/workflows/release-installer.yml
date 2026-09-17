@@ -8,6 +8,7 @@ on:
       - "installer/**"
       - "anki-addon/**"
       - "assets/**"
+      - "chatgpt-skill/**"
       - ".github/workflows/release-installer.yml"
   workflow_dispatch:
 
@@ -52,6 +53,15 @@ jobs:
           New-Item -ItemType Directory -Force -Path artifacts/local-importer | Out-Null
           Copy-Item dist/AnkiImporter.exe artifacts/local-importer/AnkiImporter.exe
 
+      - name: Package ChatGPT skill
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/release | Out-Null
+          Compress-Archive `
+            -Path "chatgpt-skill/anki-importer/*" `
+            -DestinationPath "artifacts/release/anki-importer-skill.zip" `
+            -Force
+
       - name: Install Inno Setup
         shell: pwsh
         run: winget install --id JRSoftware.InnoSetup.7 -e -s winget --accept-package-agreements --accept-source-agreements
@@ -82,36 +92,36 @@ jobs:
 
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          New-Item -ItemType Directory -Force -Path artifacts/release | Out-Null
           Copy-Item installer/output/AnkiImporterSetup.exe artifacts/release/AnkiImporterSetup.exe
 
-      - name: Publish latest installer
+      - name: Publish latest release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $asset = "artifacts/release/AnkiImporterSetup.exe"
+          $installer = "artifacts/release/AnkiImporterSetup.exe"
+          $skill = "artifacts/release/anki-importer-skill.zip"
           $repo = "${{ github.repository }}"
 
           gh api "repos/$repo/releases/tags/latest" --silent 2>$null
           $releaseExists = ($LASTEXITCODE -eq 0)
 
           if ($releaseExists) {
-            gh release upload latest $asset --clobber --repo $repo
+            gh release upload latest $installer $skill --clobber --repo $repo
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
             gh release edit latest `
               --repo $repo `
               --target main `
               --title "Anki Importer - Última versão" `
-              --notes "Instalador mais recente do Anki Importer para Windows. Esta release é atualizada automaticamente."
+              --notes "Inclui o instalador Windows e a Skill do ChatGPT para gerar arquivos .ankiimport automaticamente."
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           else {
-            gh release create latest $asset `
+            gh release create latest $installer $skill `
               --repo $repo `
               --target main `
               --title "Anki Importer - Última versão" `
-              --notes "Instalador mais recente do Anki Importer para Windows. Esta release é atualizada automaticamente."
+              --notes "Inclui o instalador Windows e a Skill do ChatGPT para gerar arquivos .ankiimport automaticamente."
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
