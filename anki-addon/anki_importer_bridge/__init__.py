@@ -56,7 +56,7 @@ def _generate_with_awesometts(text, note_id, field_name="Back", voice="en-US", s
         state["error"] = str(exception)
 
     addon.router(
-        svc_id="Google Translate",
+        svc_id="google",
         text=str(text),
         options={"voice": voice, "speed": float(speed)},
         callbacks={"okay": okay, "fail": fail},
@@ -105,7 +105,6 @@ def _register_bridge():
             setattr(cls, ACTION_NAME, awesomeTtsGenerate)
 
     except Exception:
-        # O importador mostrará uma mensagem clara se a action não estiver disponível.
         pass
 
 
